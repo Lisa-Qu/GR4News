@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from time import perf_counter
 from uuid import uuid4
 
@@ -19,11 +19,47 @@ from mind_genrec.serving.schemas import (
 )
 
 
+_LATENCY_BUCKETS_MS = (10.0, 25.0, 50.0, 100.0, 200.0, 500.0, 1000.0)
+
+
+class _LatencyHistogram:
+    """Minimal Prometheus-compatible latency histogram (no external dependency)."""
+
+    def __init__(self, buckets: tuple[float, ...] = _LATENCY_BUCKETS_MS) -> None:
+        self._buckets = buckets
+        self._counts = [0] * len(buckets)
+        self._sum = 0.0
+        self._total = 0
+
+    def observe(self, value_ms: float) -> None:
+        self._sum += value_ms
+        self._total += 1
+        for i, upper in enumerate(self._buckets):
+            if value_ms <= upper:
+                self._counts[i] += 1
+                return  # only the first matching bucket
+
+    def prometheus_lines(self, name: str) -> list[str]:
+        lines = [
+            f"# HELP {name} Request latency in milliseconds.",
+            f"# TYPE {name} histogram",
+        ]
+        cumulative = 0
+        for i, upper in enumerate(self._buckets):
+            cumulative += self._counts[i]
+            lines.append(f'{name}_bucket{{le="{upper:.0f}"}} {cumulative}')
+        lines.append(f'{name}_bucket{{le="+Inf"}} {self._total}')
+        lines.append(f"{name}_sum {self._sum:.3f}")
+        lines.append(f"{name}_count {self._total}")
+        return lines
+
+
 @dataclass
 class _ServiceMetrics:
     requests_total: int = 0
     batch_requests_total: int = 0
     cache_hits_total: int = 0
+    latency_histogram: _LatencyHistogram = field(default_factory=_LatencyHistogram)
 
 
 @dataclass(frozen=True)
@@ -117,6 +153,7 @@ class RetrievalService:
         )
 
         self._metrics.requests_total += 1
+        self._metrics.latency_histogram.observe(response.latency_ms)
         if self._cache is not None:
             self._cache.set(cache_key, payload)
         return response
@@ -169,6 +206,9 @@ class RetrievalService:
             "# TYPE mind_genrec_cache_hits_total counter",
             f"mind_genrec_cache_hits_total {self._metrics.cache_hits_total}",
         ]
+        lines += self._metrics.latency_histogram.prometheus_lines(
+            "mind_genrec_request_latency_ms"
+        )
         return "\n".join(lines) + "\n"
 
     @staticmethod
