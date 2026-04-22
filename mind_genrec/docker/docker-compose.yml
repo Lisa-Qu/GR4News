@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: mind_genrec/docker/Dockerfile
+    container_name: mind_genrec-app
+    env_file:
+      - ../.env.example
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    volumes:
+      - ../../mind_genrec:/app/mind_genrec:ro
+      - ../../runs:/app/artifacts:ro
+
+  redis:
+    image: redis:7-alpine
+    container_name: mind_genrec-redis
+    ports:
+      - "6379:6379"
