@@ -9,14 +9,14 @@ class RecommendationRequest(BaseModel):
     """Single recommendation query."""
 
     user_id: str | None = None
-    history: list[str] = Field(..., min_items=1)
+    history: list[str] = Field(..., min_length=1)
     top_k: int = Field(default=10, ge=1, le=100)
 
 
 class BatchRecommendationRequest(BaseModel):
     """Batch recommendation query."""
 
-    requests: list[RecommendationRequest] = Field(..., min_items=1)
+    requests: list[RecommendationRequest] = Field(..., min_length=1)
 
 
 class RecommendationItem(BaseModel):
