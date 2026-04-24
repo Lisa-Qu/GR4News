@@ -7,8 +7,11 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import math
+
 import numpy as np
 import torch
+from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
 from mind_genrec.model import ARSemanticIdGenerator, GeneratorConfig, SemanticIDMapper
@@ -71,6 +74,7 @@ def train_one_epoch(
     loader: DataLoader[GeneratorBatch],
     optimizer: torch.optim.Optimizer,
     device: torch.device,
+    scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
 ) -> dict[str, float]:
     """Run one training epoch."""
 
@@ -89,6 +93,8 @@ def train_one_epoch(
         loss = model.compute_loss(logits, batch.target_codes)
         loss.backward()
         optimizer.step()
+        if scheduler is not None:
+            scheduler.step()
 
         predictions = logits.argmax(dim=-1)
         total_loss += float(loss.item())
@@ -123,6 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-valid-samples", type=int)
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
@@ -145,6 +152,7 @@ def train_generator_model(
     batch_size: int = 64,
     learning_rate: float = 1e-3,
     epochs: int = 3,
+    warmup_steps: int = 500,
     max_train_samples: int | None = None,
     max_valid_samples: int | None = None,
     device: str = "auto",
@@ -224,17 +232,33 @@ def train_generator_model(
     model = ARSemanticIdGenerator(model_config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
+    total_steps = len(train_loader) * epochs
+
+    def lr_lambda(current_step: int) -> float:
+        if current_step < warmup_steps:
+            return current_step / max(1, warmup_steps)
+        progress = (current_step - warmup_steps) / max(1, total_steps - warmup_steps)
+        return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+    scheduler = LambdaLR(optimizer, lr_lambda)
+
     logger = mlflow_logger or MlflowRunLogger()
     logger.log_params(asdict(model_config), prefix="generator")
     logger.log_params(
-        {"batch_size": batch_size, "learning_rate": learning_rate, "epochs": epochs},
+        {
+            "batch_size": batch_size,
+            "learning_rate": learning_rate,
+            "epochs": epochs,
+            "warmup_steps": warmup_steps,
+            "scheduler": "cosine_with_warmup",
+        },
         prefix="generator.training",
     )
 
     history: list[dict[str, object]] = []
     best_valid = None
     for epoch in range(1, epochs + 1):
-        train_metrics = train_one_epoch(model, train_loader, optimizer, device)
+        train_metrics = train_one_epoch(model, train_loader, optimizer, device, scheduler=scheduler)
         epoch_summary: dict[str, object] = {
             "epoch": epoch,
             "train": train_metrics,
@@ -271,6 +295,8 @@ def train_generator_model(
         "epochs": epochs,
         "batch_size": batch_size,
         "learning_rate": learning_rate,
+        "warmup_steps": warmup_steps,
+        "scheduler": "cosine_with_warmup",
         "history": history,
         "semantic_artifact_dir": str(artifact_dir.resolve()),
     }
@@ -300,6 +326,7 @@ def main() -> None:
         batch_size=args.batch_size,
         learning_rate=args.learning_rate,
         epochs=args.epochs,
+        warmup_steps=args.warmup_steps,
         max_train_samples=args.max_train_samples,
         max_valid_samples=args.max_valid_samples,
         device=args.device,

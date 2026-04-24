@@ -13,7 +13,7 @@ from .genrec import (
     SemanticIdGreedyRetriever,
     StubGenerativeRetriever,
 )
-from .item_encoder import EncoderType, HashingItemEncoder, ItemEncoder, ItemEncoderConfig, build_item_encoder
+from .item_encoder import EncoderType, HashingItemEncoder, ItemEncoder, ItemEncoderConfig, SBERTItemEncoder, build_item_encoder
 from .residual_quantizer import ResidualQuantizer, ResidualQuantizerConfig
 from .semantic_id_mapper import SemanticIDMapper, SemanticMappingSummary
 from .user_encoder import HistorySequenceEncoder, UserEncoderConfig
@@ -29,6 +29,7 @@ __all__ = [
     "GenRecModel",
     "EncoderType",
     "HashingItemEncoder",
+    "SBERTItemEncoder",
     "HistorySequenceEncoder",
     "ItemEncoder",
     "ItemEncoderConfig",

@@ -7,10 +7,12 @@ data:
   max_history_length: 50
 
 semantic_id:
-  encoder_type: hashing
+  encoder_type: sbert
+  sbert_model_name: "BAAI/bge-small-en-v1.5"
+  sbert_batch_size: 256
   code_length: 4
   codebook_size: 256
-  embedding_dim: 256
+  embedding_dim: 384  # bge-small output dim
   max_iterations: 20
   sample_size: 20000
   batch_size: 2048
@@ -26,7 +28,8 @@ model:
 training:
   batch_size: 64
   learning_rate: 0.001
-  epochs: 3
+  epochs: 10
+  warmup_steps: 500
 
 baseline:
   hidden_dim: 256
@@ -37,7 +40,8 @@ baseline:
   temperature: 0.07
   batch_size: 128
   learning_rate: 0.001
-  epochs: 3
+  epochs: 10
+  warmup_steps: 500
 
 evaluation:
   mode: full_corpus_retrieval

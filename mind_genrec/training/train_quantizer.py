@@ -115,7 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train and export semantic IDs for MIND news items.")
     parser.add_argument("--news-jsonl", required=True, help="Path to normalized `news.jsonl`.")
     parser.add_argument("--output-dir", required=True, help="Directory for exported semantic ID artifacts.")
-    parser.add_argument("--encoder-type", default="hashing", choices=["hashing"])
+    parser.add_argument("--encoder-type", default="hashing", choices=["hashing", "sbert"])
     parser.add_argument("--embedding-dim", type=int, default=256)
     parser.add_argument("--code-length", type=int, default=4)
     parser.add_argument("--codebook-size", type=int, default=256)

@@ -76,6 +76,8 @@ def run_pipeline(
     news_items = load_news_items(normalized_dir / "news.jsonl")
     encoder_config = ItemEncoderConfig(
         embedding_dim=int(config["semantic_id"]["embedding_dim"]),
+        sbert_model_name=str(config["semantic_id"].get("sbert_model_name", "BAAI/bge-small-en-v1.5")),
+        sbert_batch_size=int(config["semantic_id"].get("sbert_batch_size", 256)),
     )
     quantizer_config = ResidualQuantizerConfig(
         num_codebooks=int(config["semantic_id"]["code_length"]),
@@ -128,6 +130,7 @@ def run_pipeline(
             batch_size=int(config["training"]["batch_size"]),
             learning_rate=float(config["training"]["learning_rate"]),
             epochs=int(config["training"]["epochs"]),
+            warmup_steps=int(config["training"].get("warmup_steps", 500)),
             max_train_samples=max_train_samples,
             max_valid_samples=max_valid_samples,
             device=device,
@@ -149,6 +152,7 @@ def run_pipeline(
             batch_size=int(config["baseline"]["batch_size"]),
             learning_rate=float(config["baseline"]["learning_rate"]),
             epochs=int(config["baseline"]["epochs"]),
+            warmup_steps=int(config["baseline"].get("warmup_steps", 500)),
             max_train_samples=max_train_samples,
             max_valid_samples=max_valid_samples,
             device=device,

@@ -1,4 +1,4 @@
-"""Item encoder used to build the first version of semantic IDs."""
+"""Item encoder used to build semantic IDs from news content."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ import numpy as np
 from mind_genrec.data import NewsItem
 
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+")
-EncoderType = Literal["hashing"]
+EncoderType = Literal["hashing", "sbert"]
 
 
 @dataclass(frozen=True)
 class ItemEncoderConfig:
-    """Configuration for the hashing-based item encoder."""
+    """Configuration for item encoders."""
 
     embedding_dim: int = 256
     title_weight: float = 1.0
@@ -25,6 +25,9 @@ class ItemEncoderConfig:
     category_weight: float = 2.0
     subcategory_weight: float = 2.0
     use_bias_term: bool = True
+    # sbert-specific
+    sbert_model_name: str = "BAAI/bge-small-en-v1.5"
+    sbert_batch_size: int = 256
 
 
 class ItemEncoder(Protocol):
@@ -133,17 +136,72 @@ class HashingItemEncoder:
         vector[bucket] += float(weight) * sign
 
 
+class SBERTItemEncoder:
+    """Encode news items using a SentenceTransformer model (e.g. BGE)."""
+
+    def __init__(self, config: ItemEncoderConfig | None = None) -> None:
+        self._config = config or ItemEncoderConfig()
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise ImportError(
+                "sentence-transformers is required for sbert encoder. "
+                "Install with: pip install sentence-transformers"
+            ) from exc
+        self._model = SentenceTransformer(self._config.sbert_model_name)
+        actual_dim = self._model.get_sentence_embedding_dimension()
+        if actual_dim != self._config.embedding_dim:
+            object.__setattr__(self._config, "embedding_dim", actual_dim)
+
+    @property
+    def config(self) -> ItemEncoderConfig:
+        return self._config
+
+    @staticmethod
+    def _item_to_text(item: NewsItem) -> str:
+        parts = []
+        if item.category:
+            parts.append(f"[{item.category}]")
+        if item.subcategory:
+            parts.append(f"[{item.subcategory}]")
+        if item.title:
+            parts.append(item.title)
+        if item.abstract:
+            parts.append(item.abstract)
+        return " ".join(parts) if parts else "empty"
+
+    def encode_item(self, item: NewsItem) -> np.ndarray:
+        text = self._item_to_text(item)
+        embedding = self._model.encode(
+            [text],
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        return embedding[0].astype(np.float32)
+
+    def encode_items(self, items: Iterable[NewsItem]) -> np.ndarray:
+        items_list = list(items)
+        if not items_list:
+            return np.zeros((0, self._config.embedding_dim), dtype=np.float32)
+        texts = [self._item_to_text(item) for item in items_list]
+        embeddings = self._model.encode(
+            texts,
+            normalize_embeddings=True,
+            batch_size=self._config.sbert_batch_size,
+            show_progress_bar=True,
+        )
+        return embeddings.astype(np.float32)
+
+
 def build_item_encoder(
     *,
     encoder_type: EncoderType,
     config: ItemEncoderConfig | None = None,
 ) -> ItemEncoder:
-    """Build the configured item-content encoder.
-
-    The first implementation only supports `hashing`. Keeping this factory now
-    makes the future switch to stronger `embedding layer` backends explicit.
-    """
+    """Build the configured item-content encoder."""
 
     if encoder_type == "hashing":
         return HashingItemEncoder(config)
+    if encoder_type == "sbert":
+        return SBERTItemEncoder(config)
     raise ValueError(f"Unsupported encoder_type: {encoder_type}")
