@@ -10,38 +10,46 @@ semantic_id:
   encoder_type: sbert
   sbert_model_name: "BAAI/bge-small-en-v1.5"
   sbert_batch_size: 256
+  quantizer_type: rqvae  # "kmeans" or "rqvae"
   code_length: 4
   codebook_size: 256
   embedding_dim: 384  # bge-small output dim
-  max_iterations: 20
-  sample_size: 20000
+  max_iterations: 20  # kmeans only
+  sample_size: 20000  # kmeans only
   batch_size: 2048
+  rqvae_epochs: 50
+  rqvae_commitment_weight: 0.25
+  rqvae_learning_rate: 0.001
 
 model:
   decoder_type: ar
   lazy_parallel_layers: 2
-  hidden_dim: 256
-  num_layers: 4
+  hidden_dim: 512
+  num_layers: 6
   num_heads: 8
   dropout: 0.1
 
 training:
   batch_size: 64
   learning_rate: 0.001
-  epochs: 10
   warmup_steps: 500
+  epochs: 100
+  eval_every: 5
+  patience: 2
 
 baseline:
-  hidden_dim: 256
-  output_dim: 128
+  hidden_dim: 512
+  output_dim: 256
   num_heads: 8
-  num_layers: 2
+  num_layers: 4
   dropout: 0.1
   temperature: 0.07
   batch_size: 128
   learning_rate: 0.001
-  epochs: 10
   warmup_steps: 500
+  epochs: 100
+  eval_every: 5
+  patience: 2
 
 evaluation:
   mode: full_corpus_retrieval

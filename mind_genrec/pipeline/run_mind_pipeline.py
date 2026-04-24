@@ -15,6 +15,7 @@ from mind_genrec.evaluation.eval_generator import evaluate_generator_model
 from mind_genrec.tracking.mlflow_logger import MlflowRunLogger
 from mind_genrec.training.train_baseline import train_baseline_model
 from mind_genrec.training.train_generator import train_generator_model
+from mind_genrec.model.rq_vae import RQVAEConfig
 from mind_genrec.training.train_quantizer import (
     ItemEncoderConfig,
     ResidualQuantizerConfig,
@@ -87,11 +88,28 @@ def run_pipeline(
         batch_size=int(config["semantic_id"]["batch_size"]),
         seed=int(config["semantic_id"].get("seed", 7)),
     )
+    quantizer_type = str(config["semantic_id"].get("quantizer_type", "kmeans"))
+    rqvae_config = None
+    if quantizer_type == "rqvae":
+        rqvae_config = RQVAEConfig(
+            num_codebooks=int(config["semantic_id"]["code_length"]),
+            codebook_size=int(config["semantic_id"]["codebook_size"]),
+            embedding_dim=int(config["semantic_id"]["embedding_dim"]),
+            epochs=int(config["semantic_id"].get("rqvae_epochs", 50)),
+            commitment_weight=float(config["semantic_id"].get("rqvae_commitment_weight", 0.25)),
+            learning_rate=float(config["semantic_id"].get("rqvae_learning_rate", 1e-3)),
+            batch_size=int(config["semantic_id"]["batch_size"]),
+            seed=int(config["semantic_id"].get("seed", 7)),
+        )
+
     embeddings, quantizer, mapper = train_quantizer(
         news_items,
         encoder_type=config["semantic_id"]["encoder_type"],
         encoder_config=encoder_config,
         quantizer_config=quantizer_config,
+        quantizer_type=quantizer_type,
+        rqvae_config=rqvae_config,
+        device=device,
     )
     semantic_summary = export_quantizer_artifacts(
         items=news_items,
@@ -131,6 +149,8 @@ def run_pipeline(
             learning_rate=float(config["training"]["learning_rate"]),
             epochs=int(config["training"]["epochs"]),
             warmup_steps=int(config["training"].get("warmup_steps", 500)),
+            eval_every=int(config["training"].get("eval_every", 5)),
+            patience=int(config["training"].get("patience", 2)),
             max_train_samples=max_train_samples,
             max_valid_samples=max_valid_samples,
             device=device,
@@ -153,6 +173,8 @@ def run_pipeline(
             learning_rate=float(config["baseline"]["learning_rate"]),
             epochs=int(config["baseline"]["epochs"]),
             warmup_steps=int(config["baseline"].get("warmup_steps", 500)),
+            eval_every=int(config["baseline"].get("eval_every", 5)),
+            patience=int(config["baseline"].get("patience", 2)),
             max_train_samples=max_train_samples,
             max_valid_samples=max_valid_samples,
             device=device,

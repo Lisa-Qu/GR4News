@@ -7,8 +7,6 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-import math
-
 import numpy as np
 import torch
 from torch.optim.lr_scheduler import LambdaLR
@@ -121,15 +119,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--max-history-length", type=int, default=50)
     parser.add_argument("--decoder-type", default="ar")
-    parser.add_argument("--hidden-dim", type=int, default=256)
+    parser.add_argument("--hidden-dim", type=int, default=512)
     parser.add_argument("--num-heads", type=int, default=8)
-    parser.add_argument("--num-layers", type=int, default=4)
+    parser.add_argument("--num-layers", type=int, default=6)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--lazy-parallel-layers", type=int)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--warmup-steps", type=int, default=500)
+    parser.add_argument("--eval-every", type=int, default=5)
+    parser.add_argument("--patience", type=int, default=2)
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-valid-samples", type=int)
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
@@ -151,8 +151,10 @@ def train_generator_model(
     lazy_parallel_layers: int | None = None,
     batch_size: int = 64,
     learning_rate: float = 1e-3,
-    epochs: int = 3,
+    epochs: int = 100,
     warmup_steps: int = 500,
+    eval_every: int = 5,
+    patience: int = 2,
     max_train_samples: int | None = None,
     max_valid_samples: int | None = None,
     device: str = "auto",
@@ -232,15 +234,12 @@ def train_generator_model(
     model = ARSemanticIdGenerator(model_config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
-    total_steps = len(train_loader) * epochs
-
-    def lr_lambda(current_step: int) -> float:
+    def warmup_constant_lambda(current_step: int) -> float:
         if current_step < warmup_steps:
             return current_step / max(1, warmup_steps)
-        progress = (current_step - warmup_steps) / max(1, total_steps - warmup_steps)
-        return 0.5 * (1.0 + math.cos(math.pi * progress))
+        return 1.0
 
-    scheduler = LambdaLR(optimizer, lr_lambda)
+    scheduler = LambdaLR(optimizer, warmup_constant_lambda)
 
     logger = mlflow_logger or MlflowRunLogger()
     logger.log_params(asdict(model_config), prefix="generator")
@@ -250,13 +249,16 @@ def train_generator_model(
             "learning_rate": learning_rate,
             "epochs": epochs,
             "warmup_steps": warmup_steps,
-            "scheduler": "cosine_with_warmup",
+            "eval_every": eval_every,
+            "patience": patience,
+            "scheduler": "warmup_constant",
         },
         prefix="generator.training",
     )
 
     history: list[dict[str, object]] = []
     best_valid = None
+    patience_counter = 0
     for epoch in range(1, epochs + 1):
         train_metrics = train_one_epoch(model, train_loader, optimizer, device, scheduler=scheduler)
         epoch_summary: dict[str, object] = {
@@ -264,12 +266,14 @@ def train_generator_model(
             "train": train_metrics,
         }
         logger.log_metrics(train_metrics, prefix="generator.train", step=epoch)
-        if valid_loader is not None:
+
+        if valid_loader is not None and epoch % eval_every == 0:
             valid_metrics = evaluate(model, valid_loader, device)
             epoch_summary["valid"] = valid_metrics
             logger.log_metrics(valid_metrics, prefix="generator.valid", step=epoch)
             if best_valid is None or valid_metrics["loss"] < best_valid:
                 best_valid = valid_metrics["loss"]
+                patience_counter = 0
                 torch.save(
                     {
                         "model_state_dict": model.state_dict(),
@@ -277,6 +281,13 @@ def train_generator_model(
                     },
                     output_dir / "best_generator.pt",
                 )
+            else:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    print(f"Early stopping at epoch {epoch} (patience={patience})")
+                    history.append(epoch_summary)
+                    break
+
         history.append(epoch_summary)
         print(json.dumps(epoch_summary, ensure_ascii=False))
 
@@ -296,7 +307,9 @@ def train_generator_model(
         "batch_size": batch_size,
         "learning_rate": learning_rate,
         "warmup_steps": warmup_steps,
-        "scheduler": "cosine_with_warmup",
+        "eval_every": eval_every,
+        "patience": patience,
+        "scheduler": "warmup_constant",
         "history": history,
         "semantic_artifact_dir": str(artifact_dir.resolve()),
     }
@@ -327,6 +340,8 @@ def main() -> None:
         learning_rate=args.learning_rate,
         epochs=args.epochs,
         warmup_steps=args.warmup_steps,
+        eval_every=args.eval_every,
+        patience=args.patience,
         max_train_samples=args.max_train_samples,
         max_valid_samples=args.max_valid_samples,
         device=args.device,

@@ -12,6 +12,7 @@ import numpy as np
 from mind_genrec.data import NewsItem, iter_jsonl
 from mind_genrec.model.item_encoder import EncoderType, ItemEncoderConfig, build_item_encoder
 from mind_genrec.model.residual_quantizer import ResidualQuantizer, ResidualQuantizerConfig
+from mind_genrec.model.rq_vae import RQVAEConfig, RQVAEQuantizer
 from mind_genrec.model.semantic_id_mapper import SemanticIDMapper
 
 
@@ -41,16 +42,35 @@ def train_quantizer(
     encoder_type: EncoderType,
     encoder_config: ItemEncoderConfig,
     quantizer_config: ResidualQuantizerConfig,
-) -> tuple[np.ndarray, ResidualQuantizer, SemanticIDMapper]:
-    """Encode items, fit a residual quantizer, and build the mapping."""
+    quantizer_type: str = "kmeans",
+    rqvae_config: RQVAEConfig | None = None,
+    device: str = "auto",
+) -> tuple[np.ndarray, ResidualQuantizer | RQVAEQuantizer, SemanticIDMapper]:
+    """Encode items, fit a quantizer, and build the mapping.
+
+    Args:
+        quantizer_type: "kmeans" for k-means RQ, "rqvae" for learnable RQ-VAE.
+    """
 
     if not items:
         raise ValueError("train_quantizer requires at least one item")
 
     encoder = build_item_encoder(encoder_type=encoder_type, config=encoder_config)
     embeddings = encoder.encode_items(items)
-    quantizer = ResidualQuantizer(quantizer_config)
-    codes = quantizer.fit(embeddings)
+
+    if quantizer_type == "rqvae":
+        if rqvae_config is None:
+            rqvae_config = RQVAEConfig(
+                num_codebooks=quantizer_config.num_codebooks,
+                codebook_size=quantizer_config.codebook_size,
+                embedding_dim=int(embeddings.shape[1]),
+            )
+        quantizer: ResidualQuantizer | RQVAEQuantizer = RQVAEQuantizer(rqvae_config)
+        codes = quantizer.fit(embeddings, device=device)
+    else:
+        quantizer = ResidualQuantizer(quantizer_config)
+        codes = quantizer.fit(embeddings)
+
     mapper = SemanticIDMapper.from_codes(
         [item.news_id for item in items],
         codes,

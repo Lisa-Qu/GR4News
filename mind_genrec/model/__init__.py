@@ -15,6 +15,7 @@ from .genrec import (
 )
 from .item_encoder import EncoderType, HashingItemEncoder, ItemEncoder, ItemEncoderConfig, SBERTItemEncoder, build_item_encoder
 from .residual_quantizer import ResidualQuantizer, ResidualQuantizerConfig
+from .rq_vae import RQVAE, RQVAEConfig, RQVAEQuantizer
 from .semantic_id_mapper import SemanticIDMapper, SemanticMappingSummary
 from .user_encoder import HistorySequenceEncoder, UserEncoderConfig
 
@@ -37,6 +38,9 @@ __all__ = [
     "LazyAutoregressiveDecoder",
     "ResidualQuantizer",
     "ResidualQuantizerConfig",
+    "RQVAE",
+    "RQVAEConfig",
+    "RQVAEQuantizer",
     "SemanticCodeBeamSearch",
     "SemanticIdBeamSearchRetriever",
     "SemanticIDMapper",
