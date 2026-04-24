@@ -7,6 +7,8 @@ from typing import Protocol
 
 import torch
 
+from mind_genrec.model.code_trie import CodeTrie
+
 
 class SemanticCodeDecoder(Protocol):
     """Decoder interface needed by beam search."""
@@ -34,13 +36,18 @@ class BeamSearchResult:
 class SemanticCodeBeamSearch:
     """Beam search for semantic-code decoders.
 
-    The first implementation targets serving-time inference where batch sizes
-    are small. It loops over samples explicitly to keep the logic simple and
-    debuggable.
+    When a CodeTrie is provided, only valid code prefixes are expanded at
+    each step — guaranteeing every result maps to at least one real item.
+    Without a trie, falls back to unconstrained top-k expansion.
     """
 
-    def __init__(self, decoder: SemanticCodeDecoder) -> None:
+    def __init__(
+        self,
+        decoder: SemanticCodeDecoder,
+        trie: CodeTrie | None = None,
+    ) -> None:
         self._decoder = decoder
+        self._trie = trie
 
     @torch.no_grad()
     def search(
@@ -84,13 +91,39 @@ class SemanticCodeBeamSearch:
         for _step in range(self._decoder.config.code_length):
             expanded: list[tuple[list[int], float]] = []
             for prefix, score in beams:
+                # prefix[1:] strips the BOS token to get the real code prefix
+                code_prefix = tuple(prefix[1:])
+                valid_tokens = (
+                    self._trie.valid_next_tokens(code_prefix)
+                    if self._trie is not None
+                    else None
+                )
+                # Skip dead-end prefixes (trie says no valid continuations)
+                if valid_tokens is not None and len(valid_tokens) == 0:
+                    continue
+
                 prefix_tensor = torch.tensor([prefix], dtype=torch.long, device=device)
                 step_log_probs = self._decoder.next_token_log_probs(
                     user_state=user_state,
                     prefix_tokens=prefix_tensor,
                 )
-                top_log_probs, top_tokens = torch.topk(step_log_probs[0], k=token_topk)
-                for token_score, token_id in zip(top_log_probs.tolist(), top_tokens.tolist(), strict=True):
+
+                if valid_tokens is not None:
+                    # Mask to trie-allowed tokens only
+                    mask = torch.full(
+                        step_log_probs.shape, float("-inf"), device=device
+                    )
+                    valid_idx = torch.tensor(valid_tokens, dtype=torch.long, device=device)
+                    mask[0].scatter_(0, valid_idx, step_log_probs[0][valid_idx])
+                    step_log_probs = mask
+
+                k = min(token_topk, int((step_log_probs[0] > float("-inf")).sum()))
+                if k == 0:
+                    continue
+                top_log_probs, top_tokens = torch.topk(step_log_probs[0], k=k)
+                for token_score, token_id in zip(
+                    top_log_probs.tolist(), top_tokens.tolist(), strict=True
+                ):
                     expanded.append((prefix + [int(token_id)], score + float(token_score)))
 
             expanded.sort(key=lambda item: item[1], reverse=True)

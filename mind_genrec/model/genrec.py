@@ -14,6 +14,7 @@ from torch import nn
 
 from mind_genrec.model.ar_decoder import ARDecoderConfig, CodeAutoregressiveDecoder
 from mind_genrec.model.beam_search import BeamSearchResult, SemanticCodeBeamSearch
+from mind_genrec.model.code_trie import CodeTrie
 from mind_genrec.model.lazy_ar_decoder import LazyARDecoderConfig, LazyAutoregressiveDecoder
 from mind_genrec.model.semantic_id_mapper import SemanticIDMapper
 from mind_genrec.model.user_encoder import HistorySequenceEncoder, UserEncoderConfig
@@ -171,6 +172,7 @@ class ARSemanticIdGenerator(nn.Module):
         return search.search(user_state, top_k=top_k, beam_width=beam_width)
 
 
+
 class SemanticIdGreedyRetriever:
     """Serving-time wrapper around a trained AR semantic-code generator."""
 
@@ -299,6 +301,7 @@ class SemanticIdBeamSearchRetriever:
         model_name: str = "ar-semantic-generator-beam",
         beam_width: int = 8,
         fallback_code_limit: int = 5,
+        trie: CodeTrie | None = None,
     ) -> None:
         self._model = model.eval()
         self._mapper = mapper
@@ -306,6 +309,7 @@ class SemanticIdBeamSearchRetriever:
         self._model_name = model_name
         self._beam_width = beam_width
         self._fallback_code_limit = fallback_code_limit
+        self._trie = trie or CodeTrie.from_code_to_items(mapper.code_to_items)
         self._item_embeddings = torch.tensor(item_embeddings, dtype=torch.float32, device=device)
         self._item_ids = item_ids
         self._item_to_index = {item_id: index for index, item_id in enumerate(item_ids)}
@@ -366,15 +370,18 @@ class SemanticIdBeamSearchRetriever:
             dtype=torch.bool,
             device=self._device,
         )
-        beam_results = self._model.predict_topk_codes_with_scores(
-            history_embeddings,
-            history_mask,
+        search = SemanticCodeBeamSearch(self._model.decoder, trie=self._trie)
+        user_state, _ = self._model.user_encoder(history_embeddings, history_mask)
+        beam_results = search.search(
+            user_state,
             top_k=top_k,
             beam_width=max(self._beam_width, top_k),
         )[0]
 
         merged: dict[str, GeneratedCandidate] = {}
         for beam_rank, beam in enumerate(beam_results):
+            # Trie guarantees every code maps to at least one real item.
+            # Keep fallback for the no-trie code path (backward compat).
             exact_items = self._mapper.items_for_code(beam.code)
             if exact_items:
                 self._merge_candidates(

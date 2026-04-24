@@ -2,6 +2,7 @@
 
 from .ar_decoder import ARDecoderConfig, CodeAutoregressiveDecoder
 from .beam_search import BeamSearchResult, SemanticCodeBeamSearch
+from .code_trie import CodeTrie
 from .lazy_ar_decoder import LazyARDecoderConfig, LazyAutoregressiveDecoder
 from .genrec import (
     ARSemanticIdGenerator,
@@ -19,6 +20,7 @@ from .user_encoder import HistorySequenceEncoder, UserEncoderConfig
 
 __all__ = [
     "ARDecoderConfig",
+    "CodeTrie",
     "ARSemanticIdGenerator",
     "BeamSearchResult",
     "CodeAutoregressiveDecoder",
