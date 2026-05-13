@@ -44,8 +44,19 @@ def train_experiment(
 
     print(f"Train: {len(train_ds)} | Val: {len(val_ds)} | Test: {len(test_ds)}")
 
-    # Optimizer: single group for proxy simplicity
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr)
+    # Separate LR: codebook params get lower LR to prevent drift
+    cb_param_ids = set()
+    if hasattr(model, "codebook") and model.codebook is not None:
+        for cb in model.codebook:
+            for p in cb.parameters():
+                cb_param_ids.add(id(p))
+    gen_params = [p for p in model.parameters() if id(p) not in cb_param_ids]
+    cb_params = [p for p in model.parameters() if id(p) in cb_param_ids]
+
+    optimizer = torch.optim.AdamW([
+        {"params": gen_params, "lr": config.lr},
+        {"params": cb_params, "lr": config.lr * config.codebook_lr_ratio},
+    ])
 
     def warmup_lambda(step):
         if step < config.warmup_steps:

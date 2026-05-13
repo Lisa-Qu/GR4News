@@ -23,7 +23,7 @@ class GenRecV2Config:
 
     # ── Model ──
     embedding_dim: int = 384
-    hidden_dim: int = 64
+    hidden_dim: int = 128
     num_heads: int = 4
     num_layers: int = 2
     dropout: float = 0.1
@@ -38,15 +38,15 @@ class GenRecV2Config:
     # ── Training ──
     batch_size: int = 128
     lr: float = 1e-3
-    codebook_lr_ratio: float = 1.0  # same LR as generator
+    codebook_lr_ratio: float = 0.1  # slow codebook updates to prevent drift
     freeze_codebook_epochs: int = 0  # 0 = learnable from step 1
-    epochs: int = 10
+    epochs: int = 20
     warmup_steps: int = 200
     eval_every: int = 2
     patience: int = 3
 
     # ── Loss ──
-    lambda_code: float = 0.1
+    lambda_code: float = 0.25
     codebook_temperature: float = 1.0  # softmax temperature for L_code sampling
 
     # ── Eval ──
