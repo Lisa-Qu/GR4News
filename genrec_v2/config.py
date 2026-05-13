@@ -38,8 +38,8 @@ class GenRecV2Config:
     # ── Training ──
     batch_size: int = 128
     lr: float = 1e-3
-    codebook_lr_ratio: float = 0.05  # codebook_lr = lr * ratio
-    freeze_codebook_epochs: int = 3
+    codebook_lr_ratio: float = 1.0  # same LR as generator
+    freeze_codebook_epochs: int = 0  # 0 = learnable from step 1
     epochs: int = 10
     warmup_steps: int = 200
     eval_every: int = 2

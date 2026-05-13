@@ -20,15 +20,16 @@ class HotNewsFusion(nn.Module):
     ) -> None:
         super().__init__()
         self.register_buffer("hot_embs", hot_embeddings)  # frozen
-        N, D = hot_embeddings.shape
+        _, D = hot_embeddings.shape
         self.hidden_dim = hidden_dim
 
-        # Cross-attention: user_state projects to query space
+        # Cross-attention: user_state projects to hot-embedding space
         self.query_proj = nn.Linear(hidden_dim, D)
+        self.out_proj = nn.Linear(D, hidden_dim)  # project back
         self.scale = D ** 0.5
 
         # Gate
-        self.gate_proj = nn.Linear(hidden_dim + D, 1)
+        self.gate_proj = nn.Linear(hidden_dim + hidden_dim, 1)
 
     def forward(self, user_state: torch.Tensor) -> torch.Tensor:
         """Fuse hot news context into user_state."""
@@ -38,7 +39,8 @@ class HotNewsFusion(nn.Module):
         q = self.query_proj(user_state)  # [B, D]
         attn = (q @ self.hot_embs.T) / self.scale  # [B, N_hot]
         attn_w = F.softmax(attn, dim=-1)
-        hot_context = attn_w @ self.hot_embs  # [B, D]
+        hot_context_raw = attn_w @ self.hot_embs  # [B, D]
+        hot_context = self.out_proj(hot_context_raw)  # [B, hidden_dim]
 
         # Gate
         gate_input = torch.cat([user_state, hot_context], dim=-1)
