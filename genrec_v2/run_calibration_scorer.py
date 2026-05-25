@@ -108,15 +108,15 @@ def evaluate_scorer_beam_search(
     print(f"Scorer eval: {total_users} users in {elapsed:.0f}s")
 
     results: dict[str, float] = {}
-    results["greedy_recall@1"] = greedy_hit / max(1, greedy_total)
+    results["greedy_recall_at1"] = greedy_hit / max(1, greedy_total)
     for k in [1, 5, 10, 50]:
         correct, total = stats.get(k, (0, 1))
-        results[f"scorer_beam{beam_width}_recall@{k}"] = correct / max(1, total)
+        results[f"scorer_beam{beam_width}_recall_at{k}"] = correct / max(1, total)
     # Scoring efficiency
-    if results.get("scorer_beam50_recall@50", 0) > 0:
+    r50 = results.get(f"scorer_beam{beam_width}_recall_at50", 0)
+    if r50 > 0:
         results["scorer_scoring_efficiency"] = (
-            results.get("scorer_beam50_recall@1", 0)
-            / results["scorer_beam50_recall@50"]
+            results.get(f"scorer_beam{beam_width}_recall_at1", 0) / r50
         )
     return results
 
