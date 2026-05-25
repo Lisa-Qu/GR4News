@@ -113,6 +113,33 @@ class CodeAutoregressiveDecoder(nn.Module):
         step_logits = self.output_projection(decoded[:, -1, :])
         return torch.log_softmax(step_logits, dim=-1)
 
+    def get_hidden_states(
+        self, user_state: torch.Tensor, code_sequence: torch.Tensor
+    ) -> torch.Tensor:
+        """Return decoder hidden states BEFORE output projection.
+
+        Args:
+            user_state: [B, hidden_dim]
+            code_sequence: [B, code_length] — generated code tokens (no BOS)
+        Returns:
+            hidden: [B, code_length, hidden_dim]
+        """
+        batch_size = code_sequence.shape[0]
+        bos = torch.full(
+            (batch_size, 1), self.bos_token_id,
+            dtype=torch.long, device=code_sequence.device,
+        )
+        decoder_input = torch.cat([bos, code_sequence[:, :-1]], dim=1)
+        x = self.token_embedding(decoder_input)
+        positions = torch.arange(self.config.code_length, device=code_sequence.device)
+        x = x + self.position_embedding(positions).unsqueeze(0)
+        memory = user_state.unsqueeze(1)
+        decoded = self.decoder(
+            tgt=x, memory=memory,
+            tgt_mask=self._build_causal_mask(self.config.code_length, code_sequence.device),
+        )
+        return self.output_norm(decoded)  # [B, L, hidden_dim]
+
     @torch.no_grad()
     def greedy_decode(self, user_state: torch.Tensor) -> torch.Tensor:
         """Greedy decode semantic codes from the user state."""

@@ -40,10 +40,17 @@ class GenRecV2Config:
     lr: float = 1e-3
     codebook_lr_ratio: float = 0.1  # slow codebook updates to prevent drift
     freeze_codebook_epochs: int = 0  # 0 = learnable from step 1
-    epochs: int = 20
+    epochs: int = 50
     warmup_steps: int = 200
     eval_every: int = 2
-    patience: int = 3
+    patience: int = 10
+
+    # ── Scheduled Sampling ──
+    use_scheduled_sampling: bool = False
+    ss_warmup_epochs: int = 5     # pure TF warmup
+    ss_max_prob: float = 0.3       # peak substitution probability
+    ss_ramp_epochs: int = 5        # epochs to ramp from 0 → ss_max_prob
+    ss_ce_floor: float = 0.3       # minimum CE weight in interpolated loss
 
     # ── Loss ──
     lambda_code: float = 0.25

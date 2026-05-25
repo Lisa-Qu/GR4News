@@ -76,6 +76,22 @@ class GenRecV2Model(nn.Module):
         return self.decoder.greedy_decode(user_state)
 
     @torch.no_grad()
+    def greedy_decode_with_hidden(
+        self, history_emb: torch.Tensor, history_mask: torch.Tensor
+    ) -> dict[str, torch.Tensor]:
+        """Greedy decode + return per-step hidden states for calibration scorer.
+
+        Returns:
+            {"codes": [B, code_len], "hidden_states": [B, code_len, hidden_dim]}
+        """
+        user_state, _ = self.encoder(history_emb, history_mask)
+        if self.hot_news is not None:
+            user_state = self.hot_news(user_state)
+        codes = self.decoder.greedy_decode(user_state)
+        hidden = self.decoder.get_hidden_states(user_state, codes)
+        return {"codes": codes, "hidden_states": hidden}
+
+    @torch.no_grad()
     def beam_search(
         self,
         history_emb: torch.Tensor,

@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from genrec_v2.config import GenRecV2Config
 from genrec_v2.data.dataset import GenRecV2Dataset, make_collator
 from genrec_v2.eval import evaluate
+from genrec_v2.training.scheduled_sampling import scheduled_sampling_forward
 
 
 def train_experiment(
@@ -90,6 +91,13 @@ def train_experiment(
                 for p in cb.parameters():
                     p.requires_grad = True
 
+        # Scheduled sampling probability for this epoch
+        ss_prob = 0.0
+        if config.use_scheduled_sampling:
+            if epoch > config.ss_warmup_epochs:
+                ramp_epoch = min(epoch - config.ss_warmup_epochs, config.ss_ramp_epochs)
+                ss_prob = config.ss_max_prob * (ramp_epoch / max(1, config.ss_ramp_epochs))
+
         model.train()
         total_loss = 0.0
         for batch in train_loader:
@@ -97,10 +105,19 @@ def train_experiment(
                 batch[k] = batch[k].to(device)
             optimizer.zero_grad(set_to_none=True)
 
-            out = model(
-                batch["history_emb"], batch["history_mask"],
-                batch["target_code"], batch["target_emb_idx"],
-            )
+            if ss_prob > 0.0:
+                out = scheduled_sampling_forward(
+                    model,
+                    batch["history_emb"], batch["history_mask"],
+                    batch["target_code"],
+                    ss_prob=ss_prob,
+                    ce_floor=config.ss_ce_floor,
+                )
+            else:
+                out = model(
+                    batch["history_emb"], batch["history_mask"],
+                    batch["target_code"], batch["target_emb_idx"],
+                )
             loss = out["loss_gen"] + config.lambda_code * out["loss_code"]
             loss.backward()
             optimizer.step()
@@ -110,6 +127,13 @@ def train_experiment(
         train_loss = total_loss / max(1, len(train_loader))
 
         epoch_summary: dict = {"epoch": epoch, "train_loss": train_loss}
+
+        # Log SS diagnostics
+        if ss_prob > 0.0:
+            epoch_summary["ss_prob"] = ss_prob
+            epoch_summary["ss_avg_ce"] = out.get("ss_avg_ce", 0.0)
+            epoch_summary["ss_avg_entropy"] = out.get("ss_avg_entropy", 0.0)
+            epoch_summary["ss_avg_alpha"] = out.get("ss_avg_alpha", 0.0)
 
         if epoch % config.eval_every == 0:
             val_metrics = evaluate(model, val_loader, device, item_ids, code_for_item)
