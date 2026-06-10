@@ -54,8 +54,9 @@ from mind_genrec.tracking import MlflowRunLogger
 
 OUT_DIR = BASE_DIR / "experiments/main_table"
 KS = (1, 5, 10, 50)
-FOCAL_LAMBDAS = (0.2, 0.35, 0.5, 0.7, 1.0)
-LISTWISE_LAMBDA = 0.5
+NDCG_KS = (5, 10)
+# Locked λ grid + selection procedure — IDENTICAL across all settings (control variable).
+LAMBDA_GRID = (0.0, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0)
 
 
 def get_beam_data(split: str, samples, model, item_ids, cfi, iti, item_embeddings) -> dict:
@@ -74,16 +75,38 @@ def get_beam_data(split: str, samples, model, item_ids, cfi, iti, item_embedding
     return data
 
 
-def eval_peruser(scorer, is_listwise: bool, lam: float, data: dict):
-    """Evaluate on ``data``; return (aggregate R@k dict, per-sample hit@k dict).
+def _rank_metrics(rel_ordered: np.ndarray) -> tuple[dict, float, dict]:
+    """From a binary relevance vector in ranked order → hit@k, MRR, nDCG@k.
 
-    ``scorer=None`` reproduces the vanilla beam ranking (== TIGER-equivalent).
-    Per-sample hit@k boolean arrays are kept for the paired significance test.
+    Computed within the beam (Oracle-bounded). Shared formula used identically
+    across every setting/baseline so the Main Table is comparable.
+    """
+    hit = {k: bool(rel_ordered[:k].max() > 0) for k in KS}
+    nz = np.flatnonzero(rel_ordered)
+    mrr = float(1.0 / (nz[0] + 1)) if nz.size else 0.0
+    n_rel = int(rel_ordered.sum())
+    ndcg: dict[int, float] = {}
+    for k in NDCG_KS:
+        topk = rel_ordered[:k]
+        dcg = float(np.sum(topk / np.log2(np.arange(2, topk.size + 2))))
+        idcg = float(np.sum(1.0 / np.log2(np.arange(2, min(k, n_rel) + 2)))) if n_rel else 0.0
+        ndcg[k] = dcg / idcg if idcg > 0 else 0.0
+    return hit, mrr, ndcg
+
+
+def eval_peruser(scorer, is_listwise: bool, lam: float, data: dict):
+    """Evaluate on ``data``; return (aggregate metrics dict, per-sample hit@k dict).
+
+    Aggregate dict keys: R@k (k in KS), 'MRR', 'nDCG@5', 'nDCG@10', computed via
+    the shared ``_rank_metrics``. ``scorer=None`` reproduces the vanilla beam
+    ranking (== TIGER-equivalent). Per-sample hit@k arrays feed significance.
     """
     hidden, bscores = data["hidden"], data["beam_scores"]
     ustates, labels = data["user_states"], data["labels_binary"]
     n = hidden.shape[0]
     hits = {k: np.zeros(n, dtype=bool) for k in KS}
+    mrr_arr = np.zeros(n, dtype=np.float64)
+    ndcg_arr = {k: np.zeros(n, dtype=np.float64) for k in NDCG_KS}
     if scorer is not None:
         scorer = scorer.to(DEVICE)
 
@@ -94,33 +117,40 @@ def eval_peruser(scorer, is_listwise: bool, lam: float, data: dict):
         s = bscores[start:end]
         l = labels[start:end]
         c = h.shape[0]
-        if scorer is None:
-            for ci in range(c):
-                for k in KS:
-                    hits[k][start + ci] = bool(l[ci][:k].max().item() > 0)
-        elif is_listwise:
+        lw = pw = None
+        if scorer is not None and is_listwise:
             u = ustates[start:end].to(DEVICE)
             with torch.no_grad():
                 lw = scorer(h, s.to(DEVICE), user_state=u).cpu()
-            for ci in range(c):
-                final = s[ci] / CODE_LENGTH + lam * lw[ci] if lam > 0 else lw[ci]
-                order = final.argsort(descending=True)
-                for k in KS:
-                    hits[k][start + ci] = bool(l[ci][order[:k]].max().item() > 0)
-        else:
+        elif scorer is not None:
             kbeam = h.shape[1]
             with torch.no_grad():
                 lo = scorer(h.reshape(c * kbeam, CODE_LENGTH, HIDDEN_DIM)).squeeze(-1)
-                p = torch.sigmoid(lo).cpu().reshape(c, kbeam)
-            for ci in range(c):
-                final = s[ci] / CODE_LENGTH + lam * torch.log(p[ci].clamp(min=1e-8))
+                pw = torch.sigmoid(lo).cpu().reshape(c, kbeam)
+        for ci in range(c):
+            if scorer is None:
+                order = torch.arange(l.shape[1])  # vanilla = beam order
+            elif is_listwise:
+                final = s[ci] / CODE_LENGTH + lam * lw[ci] if lam > 0 else lw[ci]
                 order = final.argsort(descending=True)
-                for k in KS:
-                    hits[k][start + ci] = bool(l[ci][order[:k]].max().item() > 0)
+            else:
+                final = s[ci] / CODE_LENGTH + lam * torch.log(pw[ci].clamp(min=1e-8))
+                order = final.argsort(descending=True)
+            rel_ordered = l[ci][order].numpy()
+            hit, mrr, ndcg = _rank_metrics(rel_ordered)
+            idx = start + ci
+            for k in KS:
+                hits[k][idx] = hit[k]
+            mrr_arr[idx] = mrr
+            for k in NDCG_KS:
+                ndcg_arr[k][idx] = ndcg[k]
 
     if scorer is not None:
         scorer.cpu()
-    agg = {k: float(hits[k].mean()) for k in KS}
+    agg: dict = {k: float(hits[k].mean()) for k in KS}
+    agg["MRR"] = float(mrr_arr.mean())
+    for k in NDCG_KS:
+        agg[f"nDCG@{k}"] = float(ndcg_arr[k].mean())
     return agg, hits
 
 
@@ -181,9 +211,9 @@ def main() -> None:
 
     print("\nTraining Pointwise Focal...")
     focal = train_focal(val_data)
-    print("Selecting Focal lambda on val...")
-    best_lam, best_r1 = FOCAL_LAMBDAS[0], -1.0
-    for lam in FOCAL_LAMBDAS:
+    print("Selecting Focal lambda on val (val-R@1 argmax over locked grid)...")
+    best_lam, best_r1 = LAMBDA_GRID[0], -1.0
+    for lam in LAMBDA_GRID:
         agg, _ = eval_peruser(focal, False, lam, val_data)
         print(f"  lambda={lam:<5} val R@1={agg[1]:.4f}")
         if agg[1] > best_r1:
@@ -192,6 +222,15 @@ def main() -> None:
 
     print("\nTraining 5-seed Listwise BCE...")
     seed_scorers = train_listwise_seeds(val_data)
+    print("Selecting Listwise lambda on val (mean val-R@1 across seeds, same grid)...")
+    best_lw_lam, best_lw_r1 = LAMBDA_GRID[0], -1.0
+    for lam in LAMBDA_GRID:
+        r1s = [eval_peruser(seed_scorers[seed], True, lam, val_data)[0][1] for seed in SEEDS]
+        m = float(np.mean(r1s))
+        print(f"  lambda={lam:<5} val mean R@1={m:.4f}")
+        if m > best_lw_r1:
+            best_lw_r1, best_lw_lam = m, lam
+    print(f"  -> best Listwise lambda={best_lw_lam} (val mean R@1={best_lw_r1:.4f})")
 
     # ── Test evaluation ──
     print("\nTest evaluation...")
@@ -199,7 +238,7 @@ def main() -> None:
     focal_agg, focal_hits = eval_peruser(focal, False, best_lam, test_data)
     seed_aggs, seed_r1s, lw_hits = {}, [], None
     for seed in SEEDS:
-        agg, hh = eval_peruser(seed_scorers[seed], True, LISTWISE_LAMBDA, test_data)
+        agg, hh = eval_peruser(seed_scorers[seed], True, best_lw_lam, test_data)
         seed_aggs[str(seed)] = agg
         seed_r1s.append(agg[1])
         if seed == SEEDS[0]:
@@ -231,16 +270,18 @@ def main() -> None:
     )
 
     # ── Persist Main-Table results ──
+    metric_keys = [f"R@{k}" for k in KS] + ["MRR", "nDCG@5", "nDCG@10"]
+    lw_mean = {m: float(np.mean([seed_aggs[str(s)][m] for s in SEEDS])) for m in metric_keys}
     results = {
         "checkpoint": str(CKPT_PATH),
         "eval": {"beam_width": BEAM_WIDTH, "code_length": CODE_LENGTH,
                  "mode": "per_sample_beam", "n_test_samples": len(tsl)},
         "rows": {
-            "tiger_equivalent_vanilla": {f"R@{k}": van_agg[k] for k in KS},
-            "pointwise_focal": {"lambda": best_lam, **{f"R@{k}": focal_agg[k] for k in KS}},
+            "tiger_equivalent_vanilla": dict(van_agg),
+            "pointwise_focal": {"lambda": best_lam, **dict(focal_agg)},
             "listwise_bce_5seed": {
-                "lambda": LISTWISE_LAMBDA, "mean_R@1": mean_r1, "std_R@1": std_r1,
-                "vs_vanilla_pct": vs_van(mean_r1), "per_seed": seed_aggs,
+                "lambda": best_lw_lam, "mean_R@1": mean_r1, "std_R@1": std_r1,
+                "vs_vanilla_pct": vs_van(mean_r1), "mean": lw_mean, "per_seed": seed_aggs,
             },
             "oracle": {f"R@{k}": oracle for k in KS},
         },
@@ -261,13 +302,14 @@ def main() -> None:
     )
     with logger:
         logger.log_params({"beam_width": BEAM_WIDTH, "code_length": CODE_LENGTH,
-                           "focal_lambda": best_lam, "listwise_lambda": LISTWISE_LAMBDA,
+                           "focal_lambda": best_lam, "listwise_lambda": best_lw_lam,
+                           "lambda_grid": str(LAMBDA_GRID),
                            "n_test_samples": len(tsl), "checkpoint": str(CKPT_PATH)})
-        metrics = {f"tiger_equiv.R@{k}": van_agg[k] for k in KS}
-        metrics.update({f"focal.R@{k}": focal_agg[k] for k in KS})
-        metrics.update({"listwise.mean_R@1": mean_r1, "listwise.std_R@1": std_r1,
-                        "oracle.R@1": oracle, "se.vanilla": van_agg[1] / oracle,
-                        "se.best_scorer": mean_r1 / oracle})
+        metrics = {f"tiger_equiv.{m}": van_agg[m] for m in metric_keys}
+        metrics.update({f"focal.{m}": focal_agg[m] for m in metric_keys})
+        metrics.update({f"listwise.mean_{m}": lw_mean[m] for m in metric_keys})
+        metrics.update({"listwise.std_R@1": std_r1, "oracle.R@1": oracle,
+                        "se.vanilla": van_agg[1] / oracle, "se.best_scorer": mean_r1 / oracle})
         logger.log_metrics(metrics)
         logger.log_dict(results, "main_table_results.json")
 
