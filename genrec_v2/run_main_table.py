@@ -131,7 +131,9 @@ def eval_peruser(scorer, is_listwise: bool, lam: float, data: dict):
             if scorer is None:
                 order = torch.arange(l.shape[1])  # vanilla = beam order
             elif is_listwise:
-                final = s[ci] / CODE_LENGTH + lam * lw[ci] if lam > 0 else lw[ci]
+                # λ=0 ⇒ vanilla (scorer off). "scorer-only" (beam off) is lam=None, a
+                # separately-named config — NOT the grid's 0.0 (review finding #1).
+                final = lw[ci] if lam is None else s[ci] / CODE_LENGTH + lam * lw[ci]
                 order = final.argsort(descending=True)
             else:
                 final = s[ci] / CODE_LENGTH + lam * torch.log(pw[ci].clamp(min=1e-8))
@@ -147,7 +149,7 @@ def eval_peruser(scorer, is_listwise: bool, lam: float, data: dict):
 
     if scorer is not None:
         scorer.cpu()
-    agg: dict = {k: float(hits[k].mean()) for k in KS}
+    agg: dict = {f"R@{k}": float(hits[k].mean()) for k in KS}
     agg["MRR"] = float(mrr_arr.mean())
     for k in NDCG_KS:
         agg[f"nDCG@{k}"] = float(ndcg_arr[k].mean())
@@ -215,9 +217,9 @@ def main() -> None:
     best_lam, best_r1 = LAMBDA_GRID[0], -1.0
     for lam in LAMBDA_GRID:
         agg, _ = eval_peruser(focal, False, lam, val_data)
-        print(f"  lambda={lam:<5} val R@1={agg[1]:.4f}")
-        if agg[1] > best_r1:
-            best_r1, best_lam = agg[1], lam
+        print(f"  lambda={lam:<5} val R@1={agg['R@1']:.4f}")
+        if agg["R@1"] > best_r1:
+            best_r1, best_lam = agg["R@1"], lam
     print(f"  -> best Focal lambda={best_lam} (val R@1={best_r1:.4f})")
 
     print("\nTraining 5-seed Listwise BCE...")
@@ -225,7 +227,7 @@ def main() -> None:
     print("Selecting Listwise lambda on val (mean val-R@1 across seeds, same grid)...")
     best_lw_lam, best_lw_r1 = LAMBDA_GRID[0], -1.0
     for lam in LAMBDA_GRID:
-        r1s = [eval_peruser(seed_scorers[seed], True, lam, val_data)[0][1] for seed in SEEDS]
+        r1s = [eval_peruser(seed_scorers[seed], True, lam, val_data)[0]["R@1"] for seed in SEEDS]
         m = float(np.mean(r1s))
         print(f"  lambda={lam:<5} val mean R@1={m:.4f}")
         if m > best_lw_r1:
@@ -236,28 +238,31 @@ def main() -> None:
     print("\nTest evaluation...")
     van_agg, van_hits = eval_peruser(None, False, 0.0, test_data)
     focal_agg, focal_hits = eval_peruser(focal, False, best_lam, test_data)
-    seed_aggs, seed_r1s, lw_hits = {}, [], None
+    seed_aggs, seed_r1s, seed_hits = {}, [], {}
     for seed in SEEDS:
         agg, hh = eval_peruser(seed_scorers[seed], True, best_lw_lam, test_data)
         seed_aggs[str(seed)] = agg
-        seed_r1s.append(agg[1])
-        if seed == SEEDS[0]:
-            lw_hits = hh
+        seed_r1s.append(agg["R@1"])
+        seed_hits[seed] = hh
     mean_r1, std_r1 = float(np.mean(seed_r1s)), float(np.std(seed_r1s))
-    oracle = van_agg[50]  # perfect ranking → Oracle R@k == R@50
+    # Per-sample listwise hit = majority vote across the 5 seeds (binary), so significance
+    # tests the REPORTED 5-seed row, not a single seed (review finding #5).
+    lw_hits = {k: (np.mean([seed_hits[s][k] for s in SEEDS], axis=0) >= 0.5)
+               for k in (1, 10)}
+    oracle = van_agg["R@50"]  # perfect ranking → Oracle R@k == R@50
 
     def vs_van(x: float) -> float:
-        return (x - van_agg[1]) / max(1e-8, van_agg[1]) * 100
+        return (x - van_agg["R@1"]) / max(1e-8, van_agg["R@1"]) * 100
 
     print(f"\n{'Method':<34}{'R@1':>9}{'R@5':>9}{'R@10':>9}{'R@50':>9}{'vsVan':>8}")
     print("-" * 78)
-    print(f"{'TIGER-equiv (Vanilla BS-50)':<34}{van_agg[1]:>9.4f}{van_agg[5]:>9.4f}"
-          f"{van_agg[10]:>9.4f}{van_agg[50]:>9.4f}{'base':>8}")
-    print(f"{'Pointwise Focal lam=' + str(best_lam):<34}{focal_agg[1]:>9.4f}{focal_agg[5]:>9.4f}"
-          f"{focal_agg[10]:>9.4f}{focal_agg[50]:>9.4f}{vs_van(focal_agg[1]):>+7.1f}%")
+    print(f"{'TIGER-equiv (Vanilla BS-50)':<34}{van_agg['R@1']:>9.4f}{van_agg['R@5']:>9.4f}"
+          f"{van_agg['R@10']:>9.4f}{van_agg['R@50']:>9.4f}{'base':>8}")
+    print(f"{'Pointwise Focal lam=' + str(best_lam):<34}{focal_agg['R@1']:>9.4f}{focal_agg['R@5']:>9.4f}"
+          f"{focal_agg['R@10']:>9.4f}{focal_agg['R@50']:>9.4f}{vs_van(focal_agg['R@1']):>+7.1f}%")
     print(f"{'Listwise BCE (5-seed mean)':<34}{mean_r1:>9.4f}{'':>9}{'':>9}{'':>9}{vs_van(mean_r1):>+7.1f}%")
     print(f"{'Oracle (perfect rank)':<34}{oracle:>9.4f}{oracle:>9.4f}{oracle:>9.4f}{oracle:>9.4f}")
-    print(f"\nScoring Efficiency: vanilla={van_agg[1] / oracle * 100:.1f}%  "
+    print(f"\nScoring Efficiency: vanilla={van_agg["R@1"] / oracle * 100:.1f}%  "
           f"best_scorer={mean_r1 / oracle * 100:.1f}%")
 
     # ── Persist per-user hits (for significance test) ──
@@ -286,7 +291,7 @@ def main() -> None:
             "oracle": {f"R@{k}": oracle for k in KS},
         },
         "scoring_efficiency": {
-            "vanilla": van_agg[1] / oracle, "best_scorer": mean_r1 / oracle,
+            "vanilla": van_agg["R@1"] / oracle, "best_scorer": mean_r1 / oracle,
         },
         "runtime_sec": time.time() - t_start,
     }
@@ -309,7 +314,7 @@ def main() -> None:
         metrics.update({f"focal.{m}": focal_agg[m] for m in metric_keys})
         metrics.update({f"listwise.mean_{m}": lw_mean[m] for m in metric_keys})
         metrics.update({"listwise.std_R@1": std_r1, "oracle.R@1": oracle,
-                        "se.vanilla": van_agg[1] / oracle, "se.best_scorer": mean_r1 / oracle})
+                        "se.vanilla": van_agg["R@1"] / oracle, "se.best_scorer": mean_r1 / oracle})
         logger.log_metrics(metrics)
         logger.log_dict(results, "main_table_results.json")
 
