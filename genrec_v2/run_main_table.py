@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import gc
 import json
+import os
 import time
 from pathlib import Path
 
@@ -57,19 +58,35 @@ KS = (1, 5, 10, 50)
 NDCG_KS = (5, 10)
 # Locked λ grid + selection procedure — IDENTICAL across all settings (control variable).
 LAMBDA_GRID = (0.0, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0)
+# Small-scale smoke: SMOKE_USERS>0 slices users AFTER the seeded split (generator/split
+# unchanged, only fewer eval users → ≤10-min Stage-1 validation). 0 = full.
+LIMIT_USERS = int(os.environ.get("SMOKE_USERS", "0")) or None
+
+
+def _beam_fingerprint(split: str, n_samples: int) -> str:
+    """Identity of a beam cache — refuse to reuse a cache from a different setup
+    (e.g. the old per-USER beam, a different checkpoint, K, or code_length)."""
+    return (f"ckpt={CKPT_PATH}|split={split}|mode=per_sample|"
+            f"K={BEAM_WIDTH}|code_len={CODE_LENGTH}|n={n_samples}")
 
 
 def get_beam_data(split: str, samples, model, item_ids, cfi, iti, item_embeddings) -> dict:
-    """Collect (or load cached) per-sample beam calibration data for one split."""
+    """Collect (or load fingerprint-matched cache of) per-sample beam data for one split."""
     cache = OUT_DIR / f"beam_{split}.pt"
+    fp = _beam_fingerprint(split, len(samples))
     if cache.exists():
-        print(f"  loading cached beam data: {cache}")
-        return torch.load(cache)
+        cached = torch.load(cache)
+        if cached.get("_fingerprint") == fp:
+            print(f"  loading cached beam data: {cache}")
+            return cached
+        print(f"  cache fingerprint mismatch -> recollecting\n"
+              f"    cached:  {cached.get('_fingerprint')}\n    want:    {fp}")
     t0 = time.time()
     data = collect_beam_calibration_data(
         model, samples, iti, cfi, item_embeddings, MAX_HIST,
         DEVICE, item_ids, beam_width=BEAM_WIDTH, batch_size=32,
     )
+    data["_fingerprint"] = fp
     torch.save(data, cache)
     print(f"  {data['hidden'].shape[0]} {split} samples [{time.time() - t0:.0f}s] -> cached")
     return data
@@ -196,12 +213,31 @@ def train_listwise_seeds(val_data: dict) -> dict:
 
 
 def main() -> None:
+    global OUT_DIR
     t_start = time.time()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("Loading model + data...")
     model = build_model()
     item_ids, cfi, iti, vsl, tsl, item_embeddings = prepare_data()
+    if LIMIT_USERS:
+        # Slice to the first N users (by id) of each split — identical generator/split,
+        # just fewer eval users → fast Stage-1 smoke. OUT_DIR is namespaced so the smoke
+        # never overwrites/loads the full-run cache or results.
+        def _first_n_users(samples, n):
+            keep, seen = [], set()
+            for s in samples:
+                if s["user_id"] not in seen:
+                    if len(seen) >= n:
+                        continue
+                    seen.add(s["user_id"])
+                keep.append(s)
+            return keep
+        vsl, tsl = _first_n_users(vsl, LIMIT_USERS), _first_n_users(tsl, LIMIT_USERS)
+        OUT_DIR = BASE_DIR / f"experiments/main_table_smoke{LIMIT_USERS}"
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        print(f"  SMOKE: limited to {LIMIT_USERS} users/split -> "
+              f"{len(vsl)} val / {len(tsl)} test samples; OUT_DIR={OUT_DIR}")
     test_user_ids = [s["user_id"] for s in tsl]
 
     print("\nCollecting beam data (per-sample)...")
@@ -237,6 +273,11 @@ def main() -> None:
     # ── Test evaluation ──
     print("\nTest evaluation...")
     van_agg, van_hits = eval_peruser(None, False, 0.0, test_data)
+    # Stage-1 self-consistency: listwise λ=0 must reproduce vanilla (scorer off).
+    lw0_agg, _ = eval_peruser(seed_scorers[SEEDS[0]], True, 0.0, test_data)
+    assert abs(lw0_agg["R@1"] - van_agg["R@1"]) < 1e-9, (
+        f"λ=0 != vanilla (λ0 R@1={lw0_agg['R@1']}, vanilla={van_agg['R@1']}) "
+        "— λ=0 special-case not removed")
     focal_agg, focal_hits = eval_peruser(focal, False, best_lam, test_data)
     seed_aggs, seed_r1s, seed_hits = {}, [], {}
     for seed in SEEDS:
@@ -264,6 +305,17 @@ def main() -> None:
     print(f"{'Oracle (perfect rank)':<34}{oracle:>9.4f}{oracle:>9.4f}{oracle:>9.4f}{oracle:>9.4f}")
     print(f"\nScoring Efficiency: vanilla={van_agg["R@1"] / oracle * 100:.1f}%  "
           f"best_scorer={mean_r1 / oracle * 100:.1f}%")
+
+    # ── Stage-1 assertions (loud fail, not silent) ──
+    assert all(abs(oracle - van_agg[f"R@{k}"]) < 1e-9 or van_agg[f"R@{k}"] <= oracle for k in KS), \
+        "Oracle (=R@50) is not an upper bound on R@k"
+    assert np.isfinite(mean_r1) and np.isfinite(std_r1), f"non-finite listwise R@1 ({mean_r1}±{std_r1})"
+    if not LIMIT_USERS:
+        assert van_agg["R@1"] > 0.025, (
+            f"vanilla R@1={van_agg['R@1']:.4f} too low — likely stale per-USER beam cache "
+            "(expected ≈0.033 per-sample, not ≈0.023 per-user)")
+    print("Stage-1 assertions passed (λ0==vanilla, Oracle bound, finite lift"
+          + ("" if LIMIT_USERS else ", vanilla R@1 in per-sample range") + ").")
 
     # ── Persist per-user hits (for significance test) ──
     np.savez(
