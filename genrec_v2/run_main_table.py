@@ -57,7 +57,9 @@ OUT_DIR = BASE_DIR / "experiments/main_table"
 KS = (1, 5, 10, 50)
 NDCG_KS = (5, 10)
 # Locked λ grid + selection procedure — IDENTICAL across all settings (control variable).
-LAMBDA_GRID = (0.0, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0)
+# Finer at the small end (0.02, 0.05) so high-SE settings (e.g. Beauty, SE~15%, optimal
+# λ≈0.02-0.05) can reach their optimum; superset of the old grid so MIND (λ*=0.5) is unaffected.
+LAMBDA_GRID = (0.0, 0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0)
 # Small-scale smoke: SMOKE_USERS>0 slices users AFTER the seeded split (generator/split
 # unchanged, only fewer eval users → ≤10-min Stage-1 validation). 0 = full.
 LIMIT_USERS = int(os.environ.get("SMOKE_USERS", "0")) or None
@@ -303,7 +305,7 @@ def main() -> None:
           f"{focal_agg['R@10']:>9.4f}{focal_agg['R@50']:>9.4f}{vs_van(focal_agg['R@1']):>+7.1f}%")
     print(f"{'Listwise BCE (5-seed mean)':<34}{mean_r1:>9.4f}{'':>9}{'':>9}{'':>9}{vs_van(mean_r1):>+7.1f}%")
     print(f"{'Oracle (perfect rank)':<34}{oracle:>9.4f}{oracle:>9.4f}{oracle:>9.4f}{oracle:>9.4f}")
-    print(f"\nScoring Efficiency: vanilla={van_agg["R@1"] / oracle * 100:.1f}%  "
+    print(f"\nScoring Efficiency: vanilla={van_agg['R@1'] / oracle * 100:.1f}%  "
           f"best_scorer={mean_r1 / oracle * 100:.1f}%")
 
     # ── Stage-1 assertions (loud fail, not silent) ──
