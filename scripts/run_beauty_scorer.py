@@ -95,7 +95,9 @@ NHEAD = 4
 NUM_LAYERS = 2
 DIM_FF = 256
 DROPOUT = 0.1           # matches MIND scorer dropout=0.1 (control variable)
-BOTTLENECK_DIM = 256
+BOTTLENECK_DIM = 64    # match MIND CalibrationScorer bottleneck=64 (control variable —
+                       # pointwise scorer internal dim held constant across settings, like
+                       # listwise d_model=128; only input compression varies). Review-fix 2026-06-13.
 
 # Training
 LR = 1e-3
@@ -699,25 +701,32 @@ def main():
     collator = CollatorGRAM(tokenizer, args, mode="test")
     print(f"  Val: {len(val_dataset)} samples, Test: {len(test_dataset)} samples")
 
-    # ── Collect beam data ──
-    val_cache = output_dir / "beam_data_val.pt"
-    test_cache = output_dir / "beam_data_test.pt"
+    # ── Collect beam data (fingerprint-guarded: never reuse a cache from a different
+    # dataset / checkpoint / code_length / K — e.g. Toys code_length=5 must NOT load
+    # Beauty's code_length=7 cache). Review-fix 2026-06-13. ──
+    def _beam_fp(dataset, n):
+        return (f"ds={cli.dataset}|ckpt={cli.checkpoint}|code_len={code_length}|"
+                f"K={BEAM_WIDTH}|n={n}")
 
-    if val_cache.exists():
-        print(f"\nLoading cached val beam data from {val_cache}")
-        val_data = torch.load(val_cache, map_location="cpu")
-    else:
-        print("\nCollecting val beam data...")
-        val_data = collect_beam_data(model, tokenizer, val_dataset, collator, args,
-                                     output_dir, code_length, "val")
+    def _load_or_collect(tag, dataset):
+        cache = output_dir / f"beam_data_{tag}.pt"
+        fp = _beam_fp(cli.dataset, len(dataset))
+        if cache.exists():
+            data = torch.load(cache, map_location="cpu")
+            if data.get("_fingerprint") == fp:
+                print(f"\nLoading cached {tag} beam data from {cache}")
+                return data
+            print(f"\n{tag} cache fingerprint mismatch -> recollecting\n"
+                  f"  cached: {data.get('_fingerprint')}\n  want:   {fp}")
+        print(f"\nCollecting {tag} beam data...")
+        data = collect_beam_data(model, tokenizer, dataset, collator, args,
+                                 output_dir, code_length, tag)
+        data["_fingerprint"] = fp
+        torch.save(data, cache)  # re-save with fingerprint stamped
+        return data
 
-    if test_cache.exists():
-        print(f"Loading cached test beam data from {test_cache}")
-        test_data = torch.load(test_cache, map_location="cpu")
-    else:
-        print("Collecting test beam data...")
-        test_data = collect_beam_data(model, tokenizer, test_dataset, collator, args,
-                                      output_dir, code_length, "test")
+    val_data = _load_or_collect("val", val_dataset)
+    test_data = _load_or_collect("test", test_dataset)
 
     # Free model memory
     del model
@@ -870,12 +879,16 @@ def main():
           f"Best Scorer={mean_r1 / max(oracle, 1e-8) * 100:.1f}%")
 
     # ── Persist per-user hits (for genrec_v2/run_statistical_significance.py) ──
+    # Per-seed listwise hits (5×N) → significance tests the per-seed effect the reported
+    # 5-seed-mean R@1 describes, not an ad-hoc ensemble (review-fix 2026-06-13).
     np.savez(
         output_dir / "per_user_hits.npz",
         user_ids=np.array(test_user_ids),
         vanilla_hit1=van_hits[1], vanilla_hit10=van_hits[10],
         focal_hit1=focal_hits[1], focal_hit10=focal_hits[10],
-        listwise_hit1=lw_hits[1], listwise_hit10=lw_hits[10],
+        listwise_hit1=lw_hits[1], listwise_hit10=lw_hits[10],  # voted ensemble (kept)
+        listwise_hit1_seeds=np.stack([seed_hits[s][1] for s in SEEDS]),
+        listwise_hit10_seeds=np.stack([seed_hits[s][10] for s in SEEDS]),
     )
 
     # ── Persist results (R@k + MRR + nDCG@5/10) ──

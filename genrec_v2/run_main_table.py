@@ -320,12 +320,16 @@ def main() -> None:
           + ("" if LIMIT_USERS else ", vanilla R@1 in per-sample range") + ").")
 
     # ── Persist per-user hits (for significance test) ──
+    # Save PER-SEED listwise hits (5×N) so significance tests the per-seed effect that the
+    # reported 5-seed-mean R@1 describes — not an ad-hoc ensemble (review-fix 2026-06-13).
     np.savez(
         OUT_DIR / "per_user_hits.npz",
         user_ids=np.array(test_user_ids),
         vanilla_hit1=van_hits[1], vanilla_hit10=van_hits[10],
         focal_hit1=focal_hits[1], focal_hit10=focal_hits[10],
-        listwise_hit1=lw_hits[1], listwise_hit10=lw_hits[10],
+        listwise_hit1=lw_hits[1], listwise_hit10=lw_hits[10],  # voted ensemble (kept)
+        listwise_hit1_seeds=np.stack([seed_hits[s][1] for s in SEEDS]),
+        listwise_hit10_seeds=np.stack([seed_hits[s][10] for s in SEEDS]),
     )
 
     # ── Persist Main-Table results ──

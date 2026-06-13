@@ -105,8 +105,28 @@ def main() -> None:
               f"{m['p_value']:>11.2e}{m['stars']:<3}"
               f"{str(m['scorer_wins']) + '/' + str(m['scorer_losses']):>14}")
 
+    # Per-seed listwise significance — the reported 5-seed-mean R@1 is a per-seed effect,
+    # so test EACH seed vs vanilla and report how many are significant (review-fix 2026-06-13).
+    per_seed = {}
+    for k in (1, 10):
+        sk = f"listwise_hit{k}_seeds"
+        if sk not in d:
+            continue
+        van = d[f"vanilla_hit{k}"]
+        seed_arr = d[sk]  # (n_seeds, N)
+        rows = [mcnemar_test(van, seed_arr[i]) for i in range(seed_arr.shape[0])]
+        ps = [row["p_value"] for row in rows]
+        n_sig = int(sum(p < 0.05 for p in ps))
+        per_seed[f"listwise_hit@{k}_per_seed"] = {
+            "n_seeds": len(ps), "n_significant_p<0.05": n_sig,
+            "median_p": float(np.median(ps)), "per_seed_p": ps,
+        }
+        print(f"listwise@{k} per-seed McNemar: {n_sig}/{len(ps)} seeds p<0.05, "
+              f"median p={np.median(ps):.2e}")
+
     out = {"source": str(npz), "n_test_samples": int(len(uids)),
-           "n_test_users": int(len(set(uids.tolist()))), "comparisons": results}
+           "n_test_users": int(len(set(uids.tolist()))), "comparisons": results,
+           "listwise_per_seed": per_seed}
     (OUT_DIR / "significance.json").write_text(json.dumps(out, indent=2))
     print(f"\nWrote {OUT_DIR / 'significance.json'}")
 
