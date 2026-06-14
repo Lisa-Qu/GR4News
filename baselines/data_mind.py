@@ -49,8 +49,11 @@ def load_mind_for_nrms(max_history: int = 50, max_title_len: int = 30) -> MindDa
     train = [s for u in uids[:tn] for s in groups[u]]
     val = [s for u in val_uids for s in groups[u]]
     test = [s for u in test_uids for s in groups[u]]
-    # Catalog = all news that ever appear as a target (the retrieval candidate set).
-    catalog = sorted({s["target"] for s in vs})
+    # Catalog = the FULL generative MIND catalog = every coded item (the keys the scorer ranks
+    # over via cfi/iti), NOT just news that appear as a target. The generative model decodes any
+    # coded item, so a fair full-catalog baseline must rank against the SAME candidate set
+    # (review #4). Every target is in cfi (filtered above), so all targets are in the catalog.
+    catalog = sorted(cfi.keys())
     news2idx = {nid: i for i, nid in enumerate(catalog)}
     # Titles → word-id tensor (vocab built on catalog titles only).
     titles = {}
