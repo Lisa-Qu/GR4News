@@ -30,7 +30,11 @@ def _batched_scores(model, seqs, max_len, bs=512):
         for i in range(0, len(seqs), bs):
             b = torch.tensor([_pad(h, max_len) for h, _, _ in seqs[i:i + bs]], device=DEVICE)
             out.append(model.full_scores(b).cpu().numpy())
-    return np.concatenate(out, 0)
+    scores = np.concatenate(out, 0)
+    # Exclude the PAD column (item id 0) from ranking: targets are 1..n_items so 0 is never a
+    # valid candidate. Without this, PAD could outrank the target and inflate ranks (review #5).
+    scores[:, 0] = -np.inf
+    return scores
 
 def main():
     p = argparse.ArgumentParser()
@@ -66,7 +70,10 @@ def main():
         agg, _ = eval_full_catalog(s, tgt, uid)
         return agg["R@10"]
 
-    best, best_state, bad = -1.0, None, 0
+    # Init best_state to the initial weights so load_state_dict never receives None
+    # (e.g. if NO epoch improves over the -1.0 sentinel) (review #7).
+    best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+    best, bad = -1.0, 0
     for ep in range(cli.epochs):
         train_epoch(); r10 = val_r10()
         if r10 > best:
@@ -83,13 +90,17 @@ def main():
     agg, hits = eval_full_catalog(scores, tgt, uid)
 
     # Align vanilla hits to THIS test user order (by user_id).
+    from baselines.metrics import KS
     van = np.load(cli.vanilla_npz, allow_pickle=True)
     van_uid = list(van["user_ids"])
     pos = {u: i for i, u in enumerate(van_uid)}
     keep = [i for i, u in enumerate(uid) if u in pos]
+    assert len(keep) > 0, (
+        f"0 SASRec test users pair with the generative vanilla npz "
+        f"({cli.vanilla_npz}); check user_id formats match (review #7)")
     sel = np.array([pos[uid[i]] for i in keep])
-    vh = {1: van["vanilla_hit1"][sel], 10: van["vanilla_hit10"][sel]}
-    bh = {1: hits[1][keep], 10: hits[10][keep]}
+    vh = {k: van[f"vanilla_hit{k}"][sel] for k in KS}
+    bh = {k: hits[k][keep] for k in KS}
     cli.output_dir.mkdir(parents=True, exist_ok=True)
     write_per_user_hits(cli.output_dir, uid[keep], bh, vh)
 
