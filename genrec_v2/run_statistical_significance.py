@@ -21,13 +21,15 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 from scipy.stats import chi2, wilcoxon
 
-OUT_DIR = Path("/home/lishazhai/workspace/GR4AD/experiments/main_table")
+OUT_DIR = Path(os.environ.get("SIG_OUT_DIR",
+               "/home/lishazhai/workspace/GR4AD/experiments/main_table"))
 
 
 def stars(p: float) -> str:
@@ -88,12 +90,18 @@ def main() -> None:
     d = np.load(npz, allow_pickle=True)
     uids = d["user_ids"]
 
-    comparisons = [
-        ("listwise_vs_vanilla_hit@1", d["vanilla_hit1"], d["listwise_hit1"]),
-        ("listwise_vs_vanilla_hit@10", d["vanilla_hit10"], d["listwise_hit10"]),
-        ("focal_vs_vanilla_hit@1", d["vanilla_hit1"], d["focal_hit1"]),
-        ("focal_vs_vanilla_hit@10", d["vanilla_hit10"], d["focal_hit10"]),
-    ]
+    if "baseline_hit1" in d:  # baseline run (NRMS/SASRec) — single row vs the generative vanilla
+        comparisons = [
+            ("baseline_vs_vanilla_hit@1", d["vanilla_hit1"], d["baseline_hit1"]),
+            ("baseline_vs_vanilla_hit@10", d["vanilla_hit10"], d["baseline_hit10"]),
+        ]
+    else:  # scorer run (existing behavior)
+        comparisons = [
+            ("listwise_vs_vanilla_hit@1", d["vanilla_hit1"], d["listwise_hit1"]),
+            ("listwise_vs_vanilla_hit@10", d["vanilla_hit10"], d["listwise_hit10"]),
+            ("focal_vs_vanilla_hit@1", d["vanilla_hit1"], d["focal_hit1"]),
+            ("focal_vs_vanilla_hit@10", d["vanilla_hit10"], d["focal_hit10"]),
+        ]
     results = [run_comparison(name, uids, base, scorer) for name, base, scorer in comparisons]
 
     print(f"{'Comparison':<32}{'Wilcoxon p':>14}{'McNemar p':>14}{'win/lose':>14}")
@@ -107,22 +115,24 @@ def main() -> None:
 
     # Per-seed listwise significance — the reported 5-seed-mean R@1 is a per-seed effect,
     # so test EACH seed vs vanilla and report how many are significant (review-fix 2026-06-13).
+    # Only present in scorer runs (baseline npz has no *_seeds keys); guard explicitly.
     per_seed = {}
-    for k in (1, 10):
-        sk = f"listwise_hit{k}_seeds"
-        if sk not in d:
-            continue
-        van = d[f"vanilla_hit{k}"]
-        seed_arr = d[sk]  # (n_seeds, N)
-        rows = [mcnemar_test(van, seed_arr[i]) for i in range(seed_arr.shape[0])]
-        ps = [row["p_value"] for row in rows]
-        n_sig = int(sum(p < 0.05 for p in ps))
-        per_seed[f"listwise_hit@{k}_per_seed"] = {
-            "n_seeds": len(ps), "n_significant_p<0.05": n_sig,
-            "median_p": float(np.median(ps)), "per_seed_p": ps,
-        }
-        print(f"listwise@{k} per-seed McNemar: {n_sig}/{len(ps)} seeds p<0.05, "
-              f"median p={np.median(ps):.2e}")
+    if "listwise_hit1_seeds" in d:
+        for k in (1, 10):
+            sk = f"listwise_hit{k}_seeds"
+            if sk not in d:
+                continue
+            van = d[f"vanilla_hit{k}"]
+            seed_arr = d[sk]  # (n_seeds, N)
+            rows = [mcnemar_test(van, seed_arr[i]) for i in range(seed_arr.shape[0])]
+            ps = [row["p_value"] for row in rows]
+            n_sig = int(sum(p < 0.05 for p in ps))
+            per_seed[f"listwise_hit@{k}_per_seed"] = {
+                "n_seeds": len(ps), "n_significant_p<0.05": n_sig,
+                "median_p": float(np.median(ps)), "per_seed_p": ps,
+            }
+            print(f"listwise@{k} per-seed McNemar: {n_sig}/{len(ps)} seeds p<0.05, "
+                  f"median p={np.median(ps):.2e}")
 
     out = {"source": str(npz), "n_test_samples": int(len(uids)),
            "n_test_users": int(len(set(uids.tolist()))), "comparisons": results,
