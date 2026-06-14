@@ -88,7 +88,10 @@ def main():
         uid = np.array([x["user_id"] for x in d.val_samples])
         return eval_full_catalog(s, tgt, uid)[0]["R@10"]
 
-    best, best_state, bad = -1.0, None, 0
+    # Init best_state to the initial weights so load_state_dict never receives None
+    # (e.g. if NO epoch improves over the -1.0 sentinel) (review #7).
+    best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+    best, bad = -1.0, 0
     for ep in range(cli.epochs):
         train_epoch(); r10 = val_r10()
         if r10 > best:
@@ -105,12 +108,16 @@ def main():
     uid = np.array([x["user_id"] for x in test])
     agg, hits = eval_full_catalog(scores, tgt, uid)
 
+    from baselines.metrics import KS
     van = np.load(cli.vanilla_npz, allow_pickle=True)
     pos = {u: i for i, u in enumerate(list(van["user_ids"]))}
     keep = [i for i, u in enumerate(uid) if u in pos]
+    assert len(keep) > 0, (
+        f"0 NRMS test users pair with the generative vanilla npz "
+        f"({cli.vanilla_npz}); check user_id formats match (review #7)")
     sel = np.array([pos[uid[i]] for i in keep])
-    vh = {1: van["vanilla_hit1"][sel], 10: van["vanilla_hit10"][sel]}
-    bh = {1: hits[1][keep], 10: hits[10][keep]}
+    vh = {k: van[f"vanilla_hit{k}"][sel] for k in KS}
+    bh = {k: hits[k][keep] for k in KS}
     cli.output_dir.mkdir(parents=True, exist_ok=True)
     write_per_user_hits(cli.output_dir, uid[keep], bh, vh)
 
