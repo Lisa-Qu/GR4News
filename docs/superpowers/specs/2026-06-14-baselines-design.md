@@ -6,14 +6,23 @@
 ## Intent
 
 Add a strong discriminative baseline ROW to each GR4AD main table, comparable to the
-generative-retrieval rows under an IDENTICAL evaluation protocol:
+generative-retrieval rows:
 
 - **News table** (MIND-small): NRMS
 - **E-commerce table** (Beauty / Sports / Toys): SASRec
 
 The baseline is a *different ranked-list producer*, NOT the scorer method. Control variables:
-same user split / same held-out target / same full-catalog ranking / same `_rank_metrics`
-helper / same `per_user_hits.npz` significance pipeline as the scorer settings.
+same user split / same held-out target / same `_rank_metrics` helper / same `per_user_hits.npz`
+significance pipeline as the scorer settings.
+
+**Metric framing (corrected after adversarial review 2026-06-14):** each system reports
+**Recall@K / MRR / nDCG@K of its own ranked list** — the field-standard cross-method comparison
+(TIGER/GRAM tables put generative and sequential rows side by side this way). The generative
+rows are **beam-recall-bounded**: the generator emits a K=50 beam, so its R@50 equals the Oracle
+upper bound (target-in-beam) and its metrics are computed within that beam. The baselines rank the
+**full catalog** directly. This is NOT "identical full-catalog protocol" — it is the same metric
+(Recall@K is a per-user hit/miss, so the paired McNemar/Wilcoxon vs the generative vanilla is valid)
+applied to each method's natural candidate list. The beam-bound MUST be stated as a table footnote.
 
 ## Non-Goals (YAGNI)
 
@@ -42,9 +51,19 @@ helper / same `per_user_hits.npz` significance pipeline as the scorer settings.
 
 ### `baselines/eval_fullcatalog.py` (~120 lines)
 - Reuses the scorer's metric DEFINITIONS (`hit@k`, `MRR = 1/rank`, `nDCG@k = 1/log2(1+rank)`),
-  applied to the **full-catalog rank of the single held-out target**.
-- Emits R@1/5/10/50 + MRR + nDCG@5/10 + `per_user_hits.npz` (vanilla + baseline hit@1/@10 + user_ids).
-- Self-consistency asserts: `0 ≤ R@k ≤ 1`, metrics finite, R@k monotone non-decreasing in k.
+  applied to the **full-catalog rank of the single held-out target**. Rank derivation matches the
+  scorer's stable `argsort(descending)` tie semantics (NOT optimistic strict-greater); the PAD
+  column (item id 0) is excluded from the candidate set.
+- Emits R@1/5/10/50 + MRR + nDCG@5/10 + `per_user_hits.npz` with **baseline + generative-vanilla
+  hit@{1,5,10,50}** + user_ids (all KS persisted so @5/@50 significance is possible).
+- Self-consistency asserts (ENFORCED, per review): `0 ≤ R@k ≤ 1`, metrics finite, R@k monotone
+  non-decreasing in k, and `len(kept user_ids) > 0` after alignment (fail loudly, never empty-pair).
+
+**User-id alignment (review-critical):** the Amazon scorer's `_extract_user_id` previously fell back
+to `_idx{n}` (GRAM batch key unavailable), so `experiments/{Toys,Sports}_scorer/per_user_hits.npz`
+stored synthetic ids — SASRec's real ASIN user-ids could not pair. FIX: capture the real user id in
+`run_beauty_scorer.py` and re-run the Amazon scorers (beam cached → fast) so both sides key by the
+same real user id. NRMS is unaffected (MIND user_ids are already real, e.g. `U25421`).
 
 ## Data Alignment (1:1 mirror of the scorer test set)
 
