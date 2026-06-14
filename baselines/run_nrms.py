@@ -51,13 +51,21 @@ def main():
     opt = torch.optim.AdamW(model.parameters(), lr=1e-3)
     titles = torch.tensor(d.title_tokens, device=DEVICE)  # (M, L)
 
+    # Smoke truncates TRAIN + VAL too (not just test) so Stage-1 is actually fast.
+    train_samples = d.train_samples
+    val_samples = d.val_samples
+    if cli.smoke_users:
+        train_samples = train_samples[:20 * cli.smoke_users]
+        val_samples = val_samples[:cli.smoke_users]
+        print(f"  SMOKE: train={len(train_samples)} val={len(val_samples)}", flush=True)
+
     def batch_titles(samples):
         ht, hm = _hist_tensor(samples, d.news2idx, d.title_tokens, cli.max_history)
         tgt = torch.tensor([d.news2idx[s["target"]] for s in samples])
         return ht.to(DEVICE), hm.to(DEVICE), tgt.to(DEVICE)
 
     rng = np.random.default_rng(42)
-    tr = list(d.train_samples)
+    tr = list(train_samples)
     def train_epoch():
         model.train(); rng.shuffle(tr); tot = 0.0
         for i in range(0, len(tr), 128):
@@ -83,9 +91,9 @@ def main():
         return np.concatenate(out, 0)
 
     def val_r10():
-        s = full_scores(d.val_samples)
-        tgt = np.array([d.news2idx[x["target"]] for x in d.val_samples])
-        uid = np.array([x["user_id"] for x in d.val_samples])
+        s = full_scores(val_samples)
+        tgt = np.array([d.news2idx[x["target"]] for x in val_samples])
+        uid = np.array([x["user_id"] for x in val_samples])
         return eval_full_catalog(s, tgt, uid)[0]["R@10"]
 
     # Init best_state to the initial weights so load_state_dict never receives None
@@ -93,7 +101,8 @@ def main():
     best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
     best, bad = -1.0, 0
     for ep in range(cli.epochs):
-        train_epoch(); r10 = val_r10()
+        tl = train_epoch(); r10 = val_r10()
+        print(f"  ep{ep} train_loss={tl:.1f} val_R@10={r10:.4f}", flush=True)
         if r10 > best:
             best, best_state, bad = r10, {k: v.cpu().clone() for k, v in model.state_dict().items()}, 0
         else:

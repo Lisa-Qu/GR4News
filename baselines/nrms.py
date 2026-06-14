@@ -35,10 +35,19 @@ class NewsEncoder(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.out_dim = d
     def forward(self, title_tokens):  # (B, L)
-        mask = title_tokens != 0
+        mask = title_tokens != 0                              # (B, L) True = real word
         x = self.drop(self.emb(title_tokens))                 # (B, L, emb)
         q = self.q_proj(x)                                    # (B, L, d)
-        x, _ = self.attn(q, x, x, key_padding_mask=~mask)     # (B, L, d)
+        kpm = ~mask
+        # Guard fully-padded titles (some coded items have no news.tsv title → all-PAD row).
+        # A fully-masked key_padding_mask row makes MultiheadAttention softmax over all -inf → NaN.
+        # Let such rows attend to position 0 (a PAD embedding = 0) so the output stays finite; the
+        # additive pooling below (finite -1e9 mask) then yields a ~zero news vector for them.
+        allpad = kpm.all(dim=1)
+        if allpad.any():
+            kpm = kpm.clone()
+            kpm[allpad, 0] = False
+        x, _ = self.attn(q, x, x, key_padding_mask=kpm)       # (B, L, d)
         return self.add(self.drop(x), mask)                   # (B, d)
 
 class NRMS(nn.Module):

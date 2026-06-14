@@ -75,7 +75,8 @@ def main():
     best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
     best, bad = -1.0, 0
     for ep in range(cli.epochs):
-        train_epoch(); r10 = val_r10()
+        tl = train_epoch(); r10 = val_r10()
+        print(f"  ep{ep} train_loss={tl:.1f} val_R@10={r10:.4f}", flush=True)
         if r10 > best:
             best, best_state, bad = r10, {k: v.cpu().clone() for k, v in model.state_dict().items()}, 0
         else:
