@@ -8,27 +8,18 @@ import numpy as np
 from baselines.metrics import rank_metrics_single, KS, NDCG_KS
 
 def _target_ranks(scores: np.ndarray, targets: np.ndarray) -> np.ndarray:
-    """0-based rank of each target under a STABLE descending argsort.
-
-    This MUST match the scorer's tie semantics (genrec_v2 ``eval_peruser``):
-    ``torch.argsort(scores, descending=True)`` is stable, so among items with an
-    equal score the one with the SMALLER catalog index is ranked first. The
-    target's rank is therefore its position in that stable descending order — NOT
-    the optimistic "strictly-greater" count (which would hand every tie the best
-    possible slot and over-state the metrics).
-
-    We replicate the stable descending order with ``(-scores).argsort(kind='stable')``
-    (numpy stable sort preserves the original index order among equal keys), then
-    read off where each target index lands.
-    """
+    """0-based rank of each target = (#items scoring strictly higher) + (#items tied with the
+    target but at a smaller catalog index). Ties are broken DETERMINISTICALLY by ascending item
+    index — equivalent to a stable descending sort, but computed without sorting (fully
+    vectorized; ~17x faster than argsort+loop and avoids materialising an (N, |catalog|) order
+    array). NOT the optimistic strictly-greater count (which would hand every tie the best slot
+    and over-state the metrics)."""
     n = scores.shape[0]
-    order = np.argsort(-scores, axis=1, kind="stable")  # stable descending order
-    # position of column `targets[i]` in row i's order → its 0-based rank.
-    ranks = np.empty(n, dtype=np.int64)
-    for i in range(n):
-        # np.where on the (small) order row; argmax of the equality mask is the rank.
-        ranks[i] = int(np.flatnonzero(order[i] == targets[i])[0])
-    return ranks
+    tgt = scores[np.arange(n), targets][:, None]            # (n, 1) each target's score
+    idx = np.arange(scores.shape[1])[None, :]               # (1, C) column indices
+    higher = (scores > tgt).sum(axis=1)
+    tied_before = ((scores == tgt) & (idx < targets[:, None])).sum(axis=1)
+    return (higher + tied_before).astype(np.int64)
 
 def eval_full_catalog(scores: np.ndarray, targets: np.ndarray, user_ids: np.ndarray):
     """scores: (N, |catalog|); targets: (N,) item indices; user_ids: (N,).
@@ -80,3 +71,35 @@ def write_per_user_hits(out_dir: Path, user_ids: np.ndarray, baseline_hits: dict
         arrays[f"vanilla_hit{k}"] = vanilla_hits[k]
         arrays[f"baseline_hit{k}"] = baseline_hits[k]
     np.savez(out_dir / "per_user_hits.npz", **arrays)
+
+
+def align_vanilla(base_uid, base_hits: dict, vanilla_npz):
+    """Pair baseline per-sample hits with the same-setting generative vanilla hits.
+
+    Returns (kept_user_ids, baseline_hits, vanilla_hits) over the cutoffs the vanilla npz persists.
+    - **LOO settings** (UNIQUE user_ids in the npz, e.g. Amazon): align by user_id — orders may
+      differ (SASRec reads user_sequence.txt; the scorer iterates TestDatasetGRAM).
+    - **Per-sample settings** (REPEATED user_ids, e.g. MIND mode-B has up to ~98 samples/user):
+      user_id is NOT a key, so a user_id dict silently collapses to one arbitrary sample/user and
+      fabricates the McNemar table (review-fix 2026-06-14). Both lists are the scorer's `tsl` by
+      construction, so require element-wise-equal user_id order and pair POSITIONALLY; fail loudly.
+    """
+    van = np.load(vanilla_npz, allow_pickle=True)
+    van_uid = np.asarray(van["user_ids"])
+    base_uid = np.asarray(base_uid)
+    avail = [k for k in KS if f"vanilla_hit{k}" in van.files]
+    if len(set(van_uid.tolist())) == len(van_uid):       # unique → align by user_id
+        posn = {u: i for i, u in enumerate(van_uid)}
+        keep = np.array([i for i, u in enumerate(base_uid) if u in posn], dtype=np.int64)
+        assert keep.size > 0, f"0 baseline users pair with vanilla npz {vanilla_npz} (id mismatch)"
+        sel = np.array([posn[base_uid[i]] for i in keep])
+        vh = {k: van[f"vanilla_hit{k}"][sel] for k in avail}
+        bh = {k: base_hits[k][keep] for k in avail}
+        return base_uid[keep], bh, vh
+    # repeated user_ids → positional pairing, require identical per-sample order
+    assert base_uid.shape == van_uid.shape and np.array_equal(base_uid, van_uid), (
+        "per-sample vanilla npz has repeated user_ids; the baseline test order must equal the "
+        f"scorer's tsl for positional pairing (baseline N={base_uid.shape}, vanilla N={van_uid.shape})")
+    vh = {k: van[f"vanilla_hit{k}"][:] for k in avail}
+    bh = {k: base_hits[k][:] for k in avail}
+    return base_uid, bh, vh

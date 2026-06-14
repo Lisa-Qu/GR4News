@@ -94,22 +94,10 @@ def main():
     tgt = np.array([t for _, t, _ in test]); uid = np.array([u for _, _, u in test])
     agg, hits = eval_full_catalog(scores, tgt, uid)
 
-    # Align vanilla hits to THIS test user order (by user_id).
-    from baselines.metrics import KS
-    van = np.load(cli.vanilla_npz, allow_pickle=True)
-    van_uid = list(van["user_ids"])
-    pos = {u: i for i, u in enumerate(van_uid)}
-    keep = [i for i, u in enumerate(uid) if u in pos]
-    assert len(keep) > 0, (
-        f"0 SASRec test users pair with the generative vanilla npz "
-        f"({cli.vanilla_npz}); check user_id formats match (review #7)")
-    sel = np.array([pos[uid[i]] for i in keep])
-    # Compare only the cutoffs the generative vanilla actually persisted (the scorer writes @1/@10).
-    avail = [k for k in KS if f"vanilla_hit{k}" in van.files]
-    vh = {k: van[f"vanilla_hit{k}"][sel] for k in avail}
-    bh = {k: hits[k][keep] for k in avail}
+    # Amazon is LOO (one sample/user → unique user_id) so align_vanilla pairs by user_id.
+    kept_uid, bh, vh = align_vanilla(uid, hits, cli.vanilla_npz)
     cli.output_dir.mkdir(parents=True, exist_ok=True)
-    write_per_user_hits(cli.output_dir, uid[keep], bh, vh)
+    write_per_user_hits(cli.output_dir, kept_uid, bh, vh)
 
     results = {"dataset": cli.dataset, "model": "SASRec", "n_items": data.n_items,
                "n_test": len(test), "rows": {"sasrec": agg}, "runtime_sec": time.time() - t0}

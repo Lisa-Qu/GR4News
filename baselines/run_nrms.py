@@ -17,7 +17,7 @@ import torch.nn.functional as F
 
 from baselines.data_mind import load_mind_for_nrms
 from baselines.nrms import NRMS
-from baselines.eval_fullcatalog import eval_full_catalog, write_per_user_hits
+from baselines.eval_fullcatalog import eval_full_catalog, write_per_user_hits, align_vanilla
 from mind_genrec.tracking import MlflowRunLogger
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -117,20 +117,11 @@ def main():
     uid = np.array([x["user_id"] for x in test])
     agg, hits = eval_full_catalog(scores, tgt, uid)
 
-    from baselines.metrics import KS
-    van = np.load(cli.vanilla_npz, allow_pickle=True)
-    pos = {u: i for i, u in enumerate(list(van["user_ids"]))}
-    keep = [i for i, u in enumerate(uid) if u in pos]
-    assert len(keep) > 0, (
-        f"0 NRMS test users pair with the generative vanilla npz "
-        f"({cli.vanilla_npz}); check user_id formats match (review #7)")
-    sel = np.array([pos[uid[i]] for i in keep])
-    # Compare only the cutoffs the generative vanilla actually persisted (the scorer writes @1/@10).
-    avail = [k for k in KS if f"vanilla_hit{k}" in van.files]
-    vh = {k: van[f"vanilla_hit{k}"][sel] for k in avail}
-    bh = {k: hits[k][keep] for k in avail}
+    # MIND is per-sample (mode-B → many samples/user), so align POSITIONALLY (NRMS test list ==
+    # the scorer's tsl by construction) — a user_id dict would mis-pair (review-fix 2026-06-14).
+    kept_uid, bh, vh = align_vanilla(uid, hits, cli.vanilla_npz)
     cli.output_dir.mkdir(parents=True, exist_ok=True)
-    write_per_user_hits(cli.output_dir, uid[keep], bh, vh)
+    write_per_user_hits(cli.output_dir, kept_uid, bh, vh)
 
     results = {"model": "NRMS", "n_news": len(d.news2idx), "n_test": len(test),
                "rows": {"nrms": agg}, "runtime_sec": time.time() - t0}

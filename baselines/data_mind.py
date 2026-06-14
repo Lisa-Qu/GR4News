@@ -36,8 +36,12 @@ def load_mind_for_nrms(max_history: int = 50, max_title_len: int = 30) -> MindDa
     cfi = {k: tuple(v) for k, v in mapper.items()}
     iti = {nid: i for i, nid in enumerate(item_ids)}
     all_samples = build_samples(str(BEHAVIORS), mode="B")
+    # Sample-selection filter window is HARDCODED 50 to match prepare_data EXACTLY (it uses
+    # history[:50]); this is decoupled from `max_history` (which only truncates the NRMS history
+    # tensor below). Identical filter + identical seed42 70/15/15 split ⇒ NRMS test list == the
+    # scorer's tsl in the SAME order, so significance pairs positionally (review-fix 2026-06-14).
     vs = [s for s in all_samples if s["target"] in cfi
-          and any(h in iti for h in s["history"][:max_history])]
+          and any(h in iti for h in s["history"][:50])]
     # SAME split as prepare_data: group by user, seed42 shuffle, 70/15/15.
     groups: dict[str, list] = {}
     for s in vs:
