@@ -249,28 +249,44 @@ def main() -> None:
     gc.collect()
     torch.cuda.empty_cache()
 
+    # Held-out λ-selection (review-fix 2026-06-13): scorers train ONLY on `val_pool`
+    # users; λ is selected on the disjoint `val_hold` users they NEVER saw. Selecting λ
+    # on training-included data over-trusts an overfit scorer — proxy on Toys (high-SE)
+    # flipped from −13% to +3.7% once λ was chosen on a held-out split. The selection
+    # PROCEDURE is the control variable, so it must be byte-identical to the Amazon path.
+    _sp = torch.randperm(val_data["hidden"].shape[0],
+                         generator=torch.Generator().manual_seed(42)).numpy()
+    _hn = int(val_data["hidden"].shape[0] * 0.3)
+    def _subset(vd, idx):
+        return {k: (v[idx] if torch.is_tensor(v) or isinstance(v, np.ndarray) else v)
+                for k, v in vd.items()}
+    val_hold = _subset(val_data, _sp[:_hn])
+    val_pool = _subset(val_data, _sp[_hn:])
+    print(f"  λ-selection split: {val_data['hidden'].shape[0] - _hn} pool (scorer-train) / "
+          f"{_hn} held-out (λ-select)")
+
     print("\nTraining Pointwise Focal...")
-    focal = train_focal(val_data)
-    print("Selecting Focal lambda on val (val-R@1 argmax over locked grid)...")
+    focal = train_focal(val_pool)
+    print("Selecting Focal lambda on held-out (R@1 argmax over locked grid)...")
     best_lam, best_r1 = LAMBDA_GRID[0], -1.0
     for lam in LAMBDA_GRID:
-        agg, _ = eval_peruser(focal, False, lam, val_data)
-        print(f"  lambda={lam:<5} val R@1={agg['R@1']:.4f}")
+        agg, _ = eval_peruser(focal, False, lam, val_hold)
+        print(f"  lambda={lam:<5} held-out R@1={agg['R@1']:.4f}")
         if agg["R@1"] > best_r1:
             best_r1, best_lam = agg["R@1"], lam
-    print(f"  -> best Focal lambda={best_lam} (val R@1={best_r1:.4f})")
+    print(f"  -> best Focal lambda={best_lam} (held-out R@1={best_r1:.4f})")
 
     print("\nTraining 5-seed Listwise BCE...")
-    seed_scorers = train_listwise_seeds(val_data)
-    print("Selecting Listwise lambda on val (mean val-R@1 across seeds, same grid)...")
+    seed_scorers = train_listwise_seeds(val_pool)
+    print("Selecting Listwise lambda on held-out (mean R@1 across seeds, same grid)...")
     best_lw_lam, best_lw_r1 = LAMBDA_GRID[0], -1.0
     for lam in LAMBDA_GRID:
-        r1s = [eval_peruser(seed_scorers[seed], True, lam, val_data)[0]["R@1"] for seed in SEEDS]
+        r1s = [eval_peruser(seed_scorers[seed], True, lam, val_hold)[0]["R@1"] for seed in SEEDS]
         m = float(np.mean(r1s))
-        print(f"  lambda={lam:<5} val mean R@1={m:.4f}")
+        print(f"  lambda={lam:<5} held-out mean R@1={m:.4f}")
         if m > best_lw_r1:
             best_lw_r1, best_lw_lam = m, lam
-    print(f"  -> best Listwise lambda={best_lw_lam} (val mean R@1={best_lw_r1:.4f})")
+    print(f"  -> best Listwise lambda={best_lw_lam} (held-out mean R@1={best_lw_r1:.4f})")
 
     # ── Test evaluation ──
     print("\nTest evaluation...")

@@ -145,6 +145,17 @@ def parse_args() -> argparse.Namespace:
                    help="GRAM hierarchical_id_type string for this dataset.")
     p.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR,
                    help="Where to write beam caches, results.json, per_user_hits.npz.")
+    p.add_argument("--top-k-similar-item", type=int, default=10,
+                   help="CF similar-item count in the prompt; MUST match training "
+                        "(Beauty/Sports=10, Toys=5).")
+    p.add_argument("--smoke-users", type=int, default=0,
+                   help="Stage-1 smoke: truncate val/test to N samples (0=full). Beam not cached "
+                        "as the canonical cache (writes to <output-dir> but fingerprint records n).")
+    p.add_argument("--lambda-grid", type=str, default="",
+                   help="Comma-separated λ override for the formal-run held-out selection "
+                        "(default = locked LAMBDA_GRID). Methodology Step-6: a proxy run narrows "
+                        "the full grid to its top-k λ; the held-out SELECTION mechanism is unchanged. "
+                        "Must include 0.0 (vanilla anchor / self-consistency).")
     return p.parse_args()
 
 
@@ -186,7 +197,7 @@ def make_args(cli: argparse.Namespace) -> argparse.Namespace:
         item_id_path=cli.item_id_path,
         item_prompt="all_text",
         cf_model="sasrec",
-        top_k_similar_item=10,  # match exp 10 config
+        top_k_similar_item=cli.top_k_similar_item,  # must match TRAINING (Beauty/Sports=10, Toys=5)
         item_prompt_max_len=128,
         target_max_len=32,
         hierarchical_id_type=cli.hierarchical_id_type,
@@ -699,6 +710,14 @@ def main():
         regenerate=False, phase=0, mode="test",
     )
     collator = CollatorGRAM(tokenizer, args, mode="test")
+    if cli.smoke_users:
+        # Stage-1 smoke: truncate to N samples (validate code_length plumbing + no crash + rough
+        # vanilla hit@k), and namespace output-dir so the smoke never overwrites the full cache.
+        val_dataset.data_samples = val_dataset.data_samples[:cli.smoke_users]
+        test_dataset.data_samples = test_dataset.data_samples[:cli.smoke_users]
+        output_dir = output_dir / f"smoke{cli.smoke_users}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print(f"  SMOKE: truncated to {cli.smoke_users}/split; output_dir={output_dir}")
     print(f"  Val: {len(val_dataset)} samples, Test: {len(test_dataset)} samples")
 
     # ── Collect beam data (fingerprint-guarded: never reuse a cache from a different
@@ -749,10 +768,33 @@ def main():
     print("PART 1: Pointwise Focal BCE")
     print("=" * 60)
 
-    # Prepare pointwise data
-    N_val, K = val_data["hidden"].shape[:2]
-    pw_X = val_data["hidden"].reshape(N_val * K, code_length, HIDDEN_DIM)
-    pw_y = val_data["labels_binary"].reshape(N_val * K)
+    # Held-out λ-selection split (review-fix 2026-06-13): scorers train ONLY on `val_pool`
+    # users; λ is selected on the disjoint `val_hold` users the scorers NEVER saw. Selecting λ
+    # on training-included data biased λ toward over-trusting an overfit scorer (Toys -60%).
+    import numpy as _np
+    N_total = val_data["hidden"].shape[0]
+    _sp = torch.randperm(N_total, generator=torch.Generator().manual_seed(42)).numpy()
+    _hn = int(N_total * VAL_RATIO)
+    hold_idx, pool_idx = _sp[:_hn], _sp[_hn:]
+    def _subset(vd, idx):
+        return {k: v[idx] for k, v in vd.items() if k != "_fingerprint"}
+    val_pool = _subset(val_data, pool_idx)
+    val_hold = _subset(val_data, hold_idx)
+    print(f"  λ-selection split: {len(pool_idx)} pool (scorer-train) / {len(hold_idx)} held-out (λ-select)")
+
+    # λ grid for the held-out selection: locked grid by default, or a proxy-narrowed
+    # top-k subset via --lambda-grid (Step-6). 0.0 stays for the vanilla anchor.
+    if cli.lambda_grid:
+        lam_grid = tuple(float(x) for x in cli.lambda_grid.split(","))
+        assert 0.0 in lam_grid, "--lambda-grid must include 0.0 (vanilla anchor)"
+        print(f"  λ grid OVERRIDE (proxy top-k): {lam_grid}")
+    else:
+        lam_grid = LAMBDA_GRID
+
+    # Prepare pointwise data — from the POOL only.
+    Np, K = val_pool["hidden"].shape[:2]
+    pw_X = val_pool["hidden"].reshape(Np * K, code_length, HIDDEN_DIM)
+    pw_y = val_pool["labels_binary"].reshape(Np * K)
 
     n_pw = pw_X.shape[0]
     perm = torch.randperm(n_pw)
@@ -771,17 +813,17 @@ def main():
     gc.collect()
     torch.cuda.empty_cache()
 
-    # Select Focal λ on VAL R@1 over the locked grid (incl. 0.0 ⇒ vanilla).
-    print("Selecting Focal lambda on val (val-R@1 argmax over locked grid)...")
-    best_focal_lam, best_focal_r1 = LAMBDA_GRID[0], -1.0
-    for lam in LAMBDA_GRID:
-        agg, _ = eval_peruser(focal_scorer, False, lam, val_data["hidden"],
-                              val_data["beam_scores"], val_data["user_states"],
-                              val_data["labels_binary"], code_length)
-        print(f"  lambda={lam:<5} val R@1={agg['R@1']:.4f}")
+    # Select Focal λ on HELD-OUT R@1 over the grid (incl. 0.0 ⇒ vanilla).
+    print("Selecting Focal lambda on held-out (R@1 argmax over grid)...")
+    best_focal_lam, best_focal_r1 = lam_grid[0], -1.0
+    for lam in lam_grid:
+        agg, _ = eval_peruser(focal_scorer, False, lam, val_hold["hidden"],
+                              val_hold["beam_scores"], val_hold["user_states"],
+                              val_hold["labels_binary"], code_length)
+        print(f"  lambda={lam:<5} held-out R@1={agg['R@1']:.4f}")
         if agg["R@1"] > best_focal_r1:
             best_focal_r1, best_focal_lam = agg["R@1"], lam
-    print(f"  -> best Focal lambda={best_focal_lam} (val R@1={best_focal_r1:.4f})")
+    print(f"  -> best Focal lambda={best_focal_lam} (held-out R@1={best_focal_r1:.4f})")
 
     # ══════════════════════════════════════════════════════════════
     # PART 2: 5-seed Listwise BCE — val-selected λ (ONE λ across seeds)
@@ -793,20 +835,20 @@ def main():
     seed_scorers = {}
     for seed in SEEDS:
         print(f"\nSeed {seed}:")
-        scorer = train_listwise(val_data, code_length, seed=seed)
+        scorer = train_listwise(val_pool, code_length, seed=seed)  # train on POOL only
         seed_scorers[seed] = scorer.cpu()
 
-    print("Selecting Listwise lambda on val (mean val-R@1 across seeds, same grid)...")
-    best_lw_lam, best_lw_r1 = LAMBDA_GRID[0], -1.0
-    for lam in LAMBDA_GRID:
+    print("Selecting Listwise lambda on held-out (mean R@1 across seeds, same grid)...")
+    best_lw_lam, best_lw_r1 = lam_grid[0], -1.0
+    for lam in lam_grid:
         r1s = [
-            eval_peruser(seed_scorers[seed], True, lam, val_data["hidden"],
-                         val_data["beam_scores"], val_data["user_states"],
-                         val_data["labels_binary"], code_length)[0]["R@1"]
+            eval_peruser(seed_scorers[seed], True, lam, val_hold["hidden"],
+                         val_hold["beam_scores"], val_hold["user_states"],
+                         val_hold["labels_binary"], code_length)[0]["R@1"]
             for seed in SEEDS
         ]
         m = float(np.mean(r1s))
-        print(f"  lambda={lam:<5} val mean R@1={m:.4f}")
+        print(f"  lambda={lam:<5} held-out mean R@1={m:.4f}")
         if m > best_lw_r1:
             best_lw_r1, best_lw_lam = m, lam
     print(f"  -> best Listwise lambda={best_lw_lam} (val mean R@1={best_lw_r1:.4f})")
@@ -899,7 +941,7 @@ def main():
         "checkpoint": str(cli.checkpoint),
         "eval": {"beam_width": BEAM_WIDTH, "code_length": code_length,
                  "mode": "per_sample_beam", "n_test_samples": int(test_l.shape[0])},
-        "lambda_grid": list(LAMBDA_GRID),
+        "lambda_grid": list(lam_grid),
         "rows": {
             "vanilla": dict(van_agg),
             "pointwise_focal": {"lambda": best_focal_lam, **dict(focal_agg)},
