@@ -99,8 +99,10 @@ def main():
         f"0 SASRec test users pair with the generative vanilla npz "
         f"({cli.vanilla_npz}); check user_id formats match (review #7)")
     sel = np.array([pos[uid[i]] for i in keep])
-    vh = {k: van[f"vanilla_hit{k}"][sel] for k in KS}
-    bh = {k: hits[k][keep] for k in KS}
+    # Compare only the cutoffs the generative vanilla actually persisted (the scorer writes @1/@10).
+    avail = [k for k in KS if f"vanilla_hit{k}" in van.files]
+    vh = {k: van[f"vanilla_hit{k}"][sel] for k in avail}
+    bh = {k: hits[k][keep] for k in avail}
     cli.output_dir.mkdir(parents=True, exist_ok=True)
     write_per_user_hits(cli.output_dir, uid[keep], bh, vh)
 

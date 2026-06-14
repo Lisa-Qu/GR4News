@@ -71,12 +71,12 @@ def write_per_user_hits(out_dir: Path, user_ids: np.ndarray, baseline_hits: dict
     """Persist baseline + the matching-setting generative vanilla hits (already aligned by user
     order) for run_statistical_significance.py's baseline_vs_vanilla comparison.
 
-    Persists ALL ``KS`` (1,5,10,50) for BOTH baseline and vanilla so significance can be tested
-    at every reported cutoff (keys ``baseline_hit{k}`` / ``vanilla_hit{k}``)."""
+    Persists the cutoffs present in BOTH dicts (keys ``baseline_hit{k}`` / ``vanilla_hit{k}``).
+    The generative vanilla anchor only persists @1/@10, so the paired comparison covers those."""
     assert len(user_ids) > 0, "write_per_user_hits: empty user_ids (no paired users)"
     out_dir.mkdir(parents=True, exist_ok=True)
     arrays = {"user_ids": np.array(user_ids)}
-    for k in KS:
+    for k in sorted(set(baseline_hits) & set(vanilla_hits)):
         arrays[f"vanilla_hit{k}"] = vanilla_hits[k]
         arrays[f"baseline_hit{k}"] = baseline_hits[k]
     np.savez(out_dir / "per_user_hits.npz", **arrays)
