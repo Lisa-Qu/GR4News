@@ -91,9 +91,13 @@ def main() -> None:
     uids = d["user_ids"]
 
     if "baseline_hit1" in d:  # baseline run (NRMS/SASRec) — single row vs the generative vanilla
+        # Compare EVERY cutoff persisted by write_per_user_hits (all KS = 1,5,10,50), not just
+        # @1/@10, so significance is reported at all reported metrics (review-fix).
+        ks = sorted(int(k[len("baseline_hit"):]) for k in d.files
+                    if k.startswith("baseline_hit") and k[len("baseline_hit"):].isdigit())
         comparisons = [
-            ("baseline_vs_vanilla_hit@1", d["vanilla_hit1"], d["baseline_hit1"]),
-            ("baseline_vs_vanilla_hit@10", d["vanilla_hit10"], d["baseline_hit10"]),
+            (f"baseline_vs_vanilla_hit@{k}", d[f"vanilla_hit{k}"], d[f"baseline_hit{k}"])
+            for k in ks
         ]
     else:  # scorer run (existing behavior)
         comparisons = [
