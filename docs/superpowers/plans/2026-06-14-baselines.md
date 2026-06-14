@@ -446,34 +446,33 @@ git commit -m "feat(baselines): NRMS model (standard config)"
 - Create: `baselines/data_amazon.py`
 - Test: `tests/baselines/test_sasrec_model.py` (data portion)
 
-> **Server discovery SPIKE (do FIRST — vendor format unknown):** on `gram-server`, inspect GRAM's
-> per-dataset sequential data + item vocabulary so the loader reads the EXACT LOO sequences the
-> generator used. Run and RECORD findings in the loader docstring:
-> ```bash
-> ls -la /data/lishazhai/workspace/GRAM/rec_datasets/Beauty/
-> for f in /data/lishazhai/workspace/GRAM/rec_datasets/Beauty/*.txt /data/lishazhai/workspace/GRAM/rec_datasets/Beauty/*.json; do echo "== $f =="; head -2 "$f"; done
-> ```
-> Identify: (a) the user→item-sequence file (e.g. `sequential_data.txt`: `user_id item1 item2 ... itemN`),
-> (b) the item id space / `datamaps.json` (item2id), (c) confirm leave-one-out = last item is test target,
-> 2nd-last = val target. If a `sequential.txt`/`datamaps.json` pair exists, use it; the SASRec catalog =
-> all item ids in the vocabulary.
+> **Server discovery SPIKE — RESOLVED 2026-06-14** (formats confirmed on `gram-server`):
+> - **Sequence file:** `rec_datasets/{ds}/user_sequence.txt` — line = `<user_id> <ASIN1> <ASIN2> ... <ASINn>`
+>   (space-sep; items are **ASIN strings** e.g. `B004756YJA`, NOT integers). Beauty = 22363 users.
+> - **Item catalog:** `rec_datasets/{ds}/item_plain_text.txt` — line = `<ASIN> title: ...`. Beauty = 12101 items.
+>   Build `item2id`: ASIN → int 1..n_items (0 = PAD), in the file's line order (stable).
+> - **LOO:** last ASIN = test target, 2nd-last = val target (GRAM convention).
+> - Sports/Toys have the same `user_sequence.txt` + `item_plain_text.txt` structure.
+> - **Alignment risk (logged):** `user_id` strings here (e.g. `A1YJEY40YUW4SE`) must match the scorer
+>   `experiments/{ds}_scorer/per_user_hits.npz` `user_ids`. The run aligns by user_id and logs how many
+>   users were kept; if 0 kept, the id spaces differ and the spike must re-map (e.g. via a user2id map).
 
-- [ ] **Step 1: Write the loader** (paths filled from the spike; structure below is the GRAM convention)
+- [ ] **Step 1: Write the loader** (ASIN sequences + item2id from item_plain_text.txt)
 
 ```python
 # baselines/data_amazon.py
-"""Amazon GRAM leave-one-out sequences for SASRec. Reads the SAME per-user item-id sequences the
-GRAM generator used (rec_datasets/{ds}). LOO: test target = last item, val target = 2nd-last,
-train = predict each prefix's next item. Full catalog = all item ids in the vocabulary.
+"""Amazon GRAM leave-one-out sequences for SASRec. Reads the SAME per-user ASIN sequences the GRAM
+generator used (rec_datasets/{ds}/user_sequence.txt). Item vocab from item_plain_text.txt (ASIN→int,
+0=PAD). LOO: test target = last item, val target = 2nd-last, train = each prefix's next item.
+Full catalog = all items in the vocabulary.
 
-Discovered format (fill from server spike):
-  sequential file: <PATH>  — line = "<user_id> <item1> <item2> ... <itemN>" (ids are GRAM item ids)
-  item vocab:      <PATH>  — datamaps.json {"item2id": {...}} OR implied by max id
+Confirmed format (server spike 2026-06-14):
+  user_sequence.txt   line = "<user_id> <ASIN> <ASIN> ..." (ASIN strings, space-sep)
+  item_plain_text.txt line = "<ASIN> title: ..."  → catalog (Beauty 12101 items, 22363 users)
 """
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
-import json
 import numpy as np
 
 GRAM_ROOT = Path("/data/lishazhai/workspace/GRAM")
@@ -483,31 +482,42 @@ class AmazonSeq:
     train: list           # list[(history_ids: list[int], target_id: int)]
     val: list             # list[(history_ids, target_id, user_id)]
     test: list            # list[(history_ids, target_id, user_id)]
-    n_items: int          # catalog size (ids are 1..n_items; 0 = PAD)
+    n_items: int          # catalog size (ids 1..n_items; 0 = PAD)
+    item2id: dict         # ASIN -> int
 
-def load_amazon_loo(dataset: str, seq_filename: str, max_history: int = 20) -> AmazonSeq:
-    seq_path = GRAM_ROOT / "rec_datasets" / dataset / seq_filename
-    seqs: list[tuple[str, list[int]]] = []
-    max_id = 0
-    with open(seq_path) as f:
+def _build_item2id(ds_dir: Path) -> dict:
+    item2id: dict[str, int] = {}
+    with open(ds_dir / "item_plain_text.txt", encoding="utf-8") as f:
+        for line in f:
+            asin = line.split(maxsplit=1)[0]
+            if asin and asin not in item2id:
+                item2id[asin] = len(item2id) + 1  # 0 = PAD
+    return item2id
+
+def load_amazon_loo(dataset: str, max_history: int = 20) -> AmazonSeq:
+    ds_dir = GRAM_ROOT / "rec_datasets" / dataset
+    item2id = _build_item2id(ds_dir)
+    def clip(h): return h[-max_history:]
+    train, val, test = [], [], []
+    with open(ds_dir / "user_sequence.txt", encoding="utf-8") as f:
         for line in f:
             parts = line.split()
             if len(parts) < 3:
                 continue  # need >=2 items for LOO (history + target)
-            uid, items = parts[0], [int(x) for x in parts[1:]]
-            max_id = max(max_id, *items)
-            seqs.append((uid, items))
-    def clip(h): return h[-max_history:]
-    train, val, test = [], [], []
-    for uid, items in seqs:
-        # test: predict last from all-before; val: predict 2nd-last from all-before-that.
-        test.append((clip(items[:-1]), items[-1], uid))
-        if len(items) >= 3:
-            val.append((clip(items[:-2]), items[-2], uid))
-        for t in range(1, len(items) - 2):  # train prefixes
-            train.append((clip(items[:t]), items[t]))
-    return AmazonSeq(train, val, test, max_id)
+            uid = parts[0]
+            items = [item2id[a] for a in parts[1:] if a in item2id]
+            if len(items) < 2:
+                continue
+            test.append((clip(items[:-1]), items[-1], uid))
+            if len(items) >= 3:
+                val.append((clip(items[:-2]), items[-2], uid))
+            for t in range(1, len(items) - 2):  # train prefixes
+                train.append((clip(items[:t]), items[t]))
+    return AmazonSeq(train, val, test, len(item2id), item2id)
 ```
+
+> Note: `run_sasrec.py` (Task 7) no longer needs `--seq-file` — drop that arg; call
+> `load_amazon_loo(cli.dataset, cli.max_history)`.
 
 - [ ] **Step 2: Commit**
 
@@ -621,7 +631,7 @@ Train SASRec per Amazon dataset, eval full-catalog on the LOO test set, persist 
 """Train + full-catalog eval SASRec on one Amazon dataset (LOO). Emits results.json +
 per_user_hits.npz (baseline + matching generative vanilla, aligned by user_id) + MLflow.
 
-Usage: python -u baselines/run_sasrec.py --dataset Sports --seq-file sequential_data.txt \
+Usage: python -u baselines/run_sasrec.py --dataset Sports \
        --vanilla-npz experiments/sports_scorer/per_user_hits.npz --output-dir experiments/sasrec_Sports
 """
 from __future__ import annotations
@@ -654,7 +664,6 @@ def _batched_scores(model, seqs, max_len, bs=512):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--dataset", required=True)
-    p.add_argument("--seq-file", required=True)
     p.add_argument("--vanilla-npz", required=True)
     p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--max-history", type=int, default=20)
@@ -663,7 +672,7 @@ def main():
     p.add_argument("--smoke-users", type=int, default=0)
     cli = p.parse_args()
     t0 = time.time()
-    data = load_amazon_loo(cli.dataset, cli.seq_file, cli.max_history)
+    data = load_amazon_loo(cli.dataset, cli.max_history)
     model = SASRec(n_items=data.n_items, max_len=cli.max_history).to(DEVICE)
     opt = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
