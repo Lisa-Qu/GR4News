@@ -274,15 +274,22 @@ def load_gram_model(args, checkpoint: Path):
 # ══════════════════════════════════════════════════════════════════
 
 def _extract_user_id(batch, fallback: int):
-    """Best-effort per-sample user id for the significance test.
+    """Per-sample REAL user id (ASIN, e.g. 'A2CG5Y82ZZNY6W') for the significance test.
 
-    The GRAM batch's user-id key is not guaranteed (GRAM source not vendored
-    here), so we probe the common keys and fall back to the running sample index
-    (each sample its own "user"). McNemar (per-sample, the primary test) is exact
-    regardless; only the Wilcoxon per-user grouping degrades to per-sample under
-    the fallback. See report note.
+    CollatorGRAM (GRAM/src/processor/Collator.py) returns the batch key ``"user_ids"`` =
+    ``[batch_item["user_id"] for batch_item in batch]`` — a plain Python list of the REAL ASIN
+    user ids straight from TestDatasetGRAM (``one_sample["user_id"] = user``, where ``user`` is a
+    key of ``user_seq_dict`` built UN-reindexed from ``user_sequence.txt`` ⇒ exactly
+    ``parts[0]``). Since the loader uses ``batch_size=1``, ``user_ids[0]`` is that sample's real
+    ASIN. We probe ``"user_ids"`` first (the actual key — the old code only probed singular keys
+    and so always fell through to the synthetic ``_idx`` id), then a few legacy aliases.
+
+    Iteration order: TestDatasetGRAM iterates ``for user in self.user_seq_dict`` (insertion order
+    = the line order of ``user_sequence.txt``), and DataLoader(shuffle=False) preserves it, so the
+    i-th collected sample's user id equals ``user_sequence.txt`` line i's ``parts[0]``. The
+    fallback ``_idx{i}`` is therefore positionally aligned to that same order if ever hit.
     """
-    for key in ("user_id", "user_idx", "users", "user", "user_name"):
+    for key in ("user_ids", "user_id", "user_idx", "users", "user", "user_name"):
         if key in batch:
             v = batch[key]
             if hasattr(v, "tolist"):
