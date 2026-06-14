@@ -24,6 +24,15 @@ upper bound (target-in-beam) and its metrics are computed within that beam. The 
 (Recall@K is a per-user hit/miss, so the paired McNemar/Wilcoxon vs the generative vanilla is valid)
 applied to each method's natural candidate list. The beam-bound MUST be stated as a table footnote.
 
+**Reporting decision (2026-06-14, user-confirmed):** report SASRec/NRMS full-catalog numbers AS-IS
+with an explicit table footnote — the generative rows are beam-recall-bounded (rank within the
+50-beam) while the baselines rank the full catalog, so absolute R@K is NOT directly comparable;
+the baseline row reports a discriminative model's full-catalog retrieval (field-standard, as in
+TIGER/GRAM tables). Do NOT artificially restrict the baseline to the beam candidate set. Empirical:
+SASRec full-catalog R@10 ≈ 0.010–0.013 (Beauty 0.0133 / Sports 0.0104 / Toys ~0.013); generative
+vanilla decisively beats it (McNemar p<0.01 all settings) — consistent with GRAM's "generative >
+SASRec", with the larger gap attributable to the harder full-catalog eval for the baseline.
+
 ## Non-Goals (YAGNI)
 
 - No hyperparameter tuning — baselines use STANDARD published configs (fair-baseline convention).
