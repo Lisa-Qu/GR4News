@@ -51,15 +51,19 @@ def main():
     model = SASRec(n_items=data.n_items, max_len=cli.max_history).to(DEVICE)
     opt = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
-    train = data.train
+    train_seqs = data.train_seqs
     rng = np.random.default_rng(42)
     def train_epoch():
-        model.train(); rng.shuffle(train); tot = 0.0
-        for i in range(0, len(train), 256):
-            batch = train[i:i + 256]
-            seq = torch.tensor([_pad(h, cli.max_history) for h, _ in batch], device=DEVICE)
-            tgt = torch.tensor([t for _, t in batch], device=DEVICE)
-            loss = F.cross_entropy(model.full_scores(seq), tgt)
+        # All-position SASRec: input = seq[:-1], target = seq[1:] (predict next at EVERY position),
+        # left-padded and aligned; PAD targets (id 0) ignored. ~len-1 supervised positions/seq.
+        model.train(); rng.shuffle(train_seqs); tot = 0.0
+        for i in range(0, len(train_seqs), 256):
+            batch = train_seqs[i:i + 256]
+            inp = torch.tensor([_pad(s[:-1], cli.max_history) for s in batch], device=DEVICE)
+            tgt = torch.tensor([_pad(s[1:], cli.max_history) for s in batch], device=DEVICE)
+            logits = model.all_scores(inp)                      # (B, L, V)
+            loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)),
+                                   tgt.reshape(-1), ignore_index=0)
             opt.zero_grad(); loss.backward(); opt.step(); tot += loss.item()
         return tot
 

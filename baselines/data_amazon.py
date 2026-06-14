@@ -17,7 +17,8 @@ GRAM_ROOT = Path("/data/lishazhai/workspace/GRAM")
 
 @dataclass(frozen=True)
 class AmazonSeq:
-    train: list           # list[(history_ids: list[int], target_id: int)]
+    train_seqs: list      # list[list[int]] — full train sub-sequence (items[:-2]) per user,
+                          # for all-position SASRec supervision (predict next item at every position)
     val: list             # list[(history_ids, target_id, user_id)]
     test: list            # list[(history_ids, target_id, user_id)]
     n_items: int          # catalog size (ids 1..n_items; 0 = PAD)
@@ -36,7 +37,7 @@ def load_amazon_loo(dataset: str, max_history: int = 20) -> AmazonSeq:
     ds_dir = GRAM_ROOT / "rec_datasets" / dataset
     item2id = _build_item2id(ds_dir)
     def clip(h): return h[-max_history:]
-    train, val, test = [], [], []
+    train_seqs, val, test = [], [], []
     with open(ds_dir / "user_sequence.txt", encoding="utf-8") as f:
         for line in f:
             parts = line.split()
@@ -49,6 +50,9 @@ def load_amazon_loo(dataset: str, max_history: int = 20) -> AmazonSeq:
             test.append((clip(items[:-1]), items[-1], uid))
             if len(items) >= 3:
                 val.append((clip(items[:-2]), items[-2], uid))
-            for t in range(1, len(items) - 2):  # train prefixes
-                train.append((clip(items[:t]), items[t]))
-    return AmazonSeq(train, val, test, len(item2id), item2id)
+            # All-position SASRec training: the train sub-sequence is items[:-2] (val+test
+            # targets held out). Need >=2 items (>=1 input position + >=1 next-item target).
+            train_sub = clip(items[:-2])
+            if len(train_sub) >= 2:
+                train_seqs.append(train_sub)
+    return AmazonSeq(train_seqs, val, test, len(item2id), item2id)
