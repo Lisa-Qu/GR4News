@@ -96,10 +96,33 @@ def align_vanilla(base_uid, base_hits: dict, vanilla_npz):
         vh = {k: van[f"vanilla_hit{k}"][sel] for k in avail}
         bh = {k: base_hits[k][keep] for k in avail}
         return base_uid[keep], bh, vh
-    # repeated user_ids → positional pairing, require identical per-sample order
-    assert base_uid.shape == van_uid.shape and np.array_equal(base_uid, van_uid), (
-        "per-sample vanilla npz has repeated user_ids; the baseline test order must equal the "
-        f"scorer's tsl for positional pairing (baseline N={base_uid.shape}, vanilla N={van_uid.shape})")
-    vh = {k: van[f"vanilla_hit{k}"][:] for k in avail}
-    bh = {k: base_hits[k][:] for k in avail}
-    return base_uid, bh, vh
+    # Repeated user_ids (per-sample, e.g. MIND mode-B). CANNOT pair positionally: both lists group
+    # users into contiguous blocks via `[s for uid in set(test_uids) for s in groups[uid]]`, and
+    # SET iteration order differs ACROSS PROCESSES (Python string-hash randomization), so the block
+    # order of the scorer's npz ≠ this run's. But within a user the rows are contiguous and in
+    # deterministic build_samples order, so the stable cross-process key is (user_id, within-user
+    # occurrence index). Pair by that key (review-fix 2026-06-14).
+    van_keys = _occurrence_keys(van_uid)
+    base_keys = _occurrence_keys(base_uid)
+    posn = {k: i for i, k in enumerate(van_keys)}
+    keep = np.array([i for i, k in enumerate(base_keys) if k in posn], dtype=np.int64)
+    assert keep.size == len(base_keys) == len(van_keys), (
+        f"per-sample pairing is not a full bijection (kept {keep.size} of base {len(base_keys)} / "
+        f"vanilla {len(van_keys)}) — baseline & scorer (user,occurrence) sample sets differ")
+    sel = np.array([posn[base_keys[i]] for i in keep])
+    vh = {k: van[f"vanilla_hit{k}"][sel] for k in avail}
+    bh = {k: base_hits[k][keep] for k in avail}
+    return base_uid[keep], bh, vh
+
+
+def _occurrence_keys(uids) -> list:
+    """(user_id, k) where k = 0-based occurrence index of that user_id so far. Stable across
+    processes (independent of set-iteration block order); within-user order is deterministic."""
+    seen: dict = {}
+    keys = []
+    for u in uids:
+        u = u.item() if hasattr(u, "item") else u
+        c = seen.get(u, 0)
+        keys.append((u, c))
+        seen[u] = c + 1
+    return keys
