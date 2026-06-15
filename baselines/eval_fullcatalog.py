@@ -91,7 +91,12 @@ def align_vanilla(base_uid, base_hits: dict, vanilla_npz):
     if len(set(van_uid.tolist())) == len(van_uid):       # unique → align by user_id
         posn = {u: i for i, u in enumerate(van_uid)}
         keep = np.array([i for i, u in enumerate(base_uid) if u in posn], dtype=np.int64)
-        assert keep.size > 0, f"0 baseline users pair with vanilla npz {vanilla_npz} (id mismatch)"
+        # Require EVERY baseline sample to pair (full coverage) — catches a SMOKE-vs-full N mismatch
+        # (scorer slices by user, baselines by sample) that would otherwise silently under-power the
+        # paired test on the intersection (review-fix 2026-06-15).
+        assert keep.size == base_uid.shape[0], (
+            f"only {keep.size}/{base_uid.shape[0]} baseline users pair with vanilla npz "
+            f"{vanilla_npz} — user-set mismatch (smoke vs full? different filter?)")
         sel = np.array([posn[base_uid[i]] for i in keep])
         vh = {k: van[f"vanilla_hit{k}"][sel] for k in avail}
         bh = {k: base_hits[k][keep] for k in avail}
