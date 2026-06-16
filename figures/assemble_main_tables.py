@@ -15,13 +15,33 @@ BASE = Path("/data/lishazhai/workspace/GR4AD")
 # Task 3: loss×label diagnostic table
 # ---------------------------------------------------------------------------
 def loss_label_table_from_log(log_text: str) -> dict:
-    """Parse run_listwise_scorer stdout → {loss: {label: best R@1}} (max R@1 across the λ sweep)."""
+    """Parse run_listwise_scorer stdout → {loss: {label: best R@1}} (max R@1 across the λ sweep).
+
+    Handles two row formats:
+      (a) explicit  ``bce_binary  ...  R@1=0.0361``  (the documented/test form), and
+      (b) the actual grid table  ``bce_binary  0.50   0.0361   0.1134   0.1720``
+          (``run_listwise_scorer`` prints space-separated columns: name, λ, R@1, R@5, R@10).
+    Whichever matches a line wins; (a) is tried first so an explicit ``R@1=`` is never
+    mis-read as a column value."""
     best: dict = {}
-    pat = re.compile(r"(bce|listmle|approx_ndcg)_(binary|soft)\b.*?R@1=([0-9.]+)")
-    for m in pat.finditer(log_text):
-        loss, label, r1 = m.group(1), m.group(2), float(m.group(3))
+    pat_explicit = re.compile(r"(bce|listmle|approx_ndcg)_(binary|soft)\b.*?R@1=([0-9.]+)")
+    # Grid row: name then λ (a float, or the literal "pure") then R@1 as the next float.
+    pat_grid = re.compile(
+        r"^(bce|listmle|approx_ndcg)_(binary|soft)\s+(?:[0-9.]+|pure)\s+([0-9.]+)"
+    )
+
+    def _record(loss: str, label: str, r1: float) -> None:
         best.setdefault(loss, {}).setdefault(label, r1)
         best[loss][label] = max(best[loss][label], r1)
+
+    for line in log_text.splitlines():
+        m = pat_explicit.search(line)
+        if m:
+            _record(m.group(1), m.group(2), float(m.group(3)))
+            continue
+        g = pat_grid.match(line.strip())
+        if g:
+            _record(g.group(1), g.group(2), float(g.group(3)))
     return best
 
 
@@ -86,6 +106,64 @@ def _render(title: str, header: list, rows: list) -> str:
     return "\n".join(md)
 
 
+LOSS_LABEL_CAPTION = (
+    "Caption: loss×label diagnostic on MIND (this script's own beam collection + 7-pt λ grid; "
+    "relative loss×label comparison only — the headline uses held-out λ + a dense grid). "
+    "Each cell = best held-out R@1 across the λ sweep; **bold** = grid max. BCE-binary is the "
+    "locked headline choice."
+)
+
+
+def _render_loss_label(best: dict, fmt: str = "md") -> str:
+    """Render the loss×label grid (rows=loss, cols=label), bolding the global max cell."""
+    losses = [l for l in ("bce", "listmle", "approx_ndcg") if l in best]
+    labels = ("binary", "soft")
+    flat = [best[l][lb] for l in losses for lb in labels if lb in best.get(l, {})]
+    top = max(flat) if flat else None
+
+    def cell(loss: str, label: str) -> str:
+        v = best.get(loss, {}).get(label)
+        if v is None:
+            return "—"
+        s = f"{v:.4f}"
+        if top is not None and abs(v - top) < 1e-12:
+            return (f"**{s}**" if fmt == "md" else r"\textbf{" + s + "}")
+        return s
+
+    if fmt == "md":
+        header = ["loss \\ label", "binary", "soft"]
+        out = ["### Loss × Label diagnostic (MIND, best held-out R@1)", "",
+               "| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+        for l in losses:
+            out.append("| " + " | ".join([l] + [cell(l, lb) for lb in labels]) + " |")
+        out += ["", LOSS_LABEL_CAPTION, ""]
+        return "\n".join(out)
+    # tex
+    out = [r"\begin{tabular}{lcc}", r"\toprule", r"loss / label & binary & soft \\", r"\midrule"]
+    for l in losses:
+        out.append(f"{l} & " + " & ".join(cell(l, lb) for lb in labels) + r" \\")
+    out += [r"\bottomrule", r"\end{tabular}"]
+    return "\n".join(out)
+
+
+def emit_loss_label_table():
+    """Task 3 Step 5: read the grid log → write loss_label_table.md (+ .tex). Report BCE-binary."""
+    out = BASE / "experiments/main_tables"; out.mkdir(parents=True, exist_ok=True)
+    log_text = (out / "loss_label_raw.log").read_text()
+    best = loss_label_table_from_log(log_text)
+    md = _render_loss_label(best, "md")
+    (out / "loss_label_table.md").write_text(md)
+    (out / "loss_label_table.tex").write_text(_render_loss_label(best, "tex"))
+    print(md)
+    flat = {(l, lb): best[l][lb] for l in best for lb in best[l]}
+    if flat:
+        bm = max(flat.values()); bb = best.get("bce", {}).get("binary")
+        if bb is not None:
+            gap = (bb - bm) / bm * 100
+            verdict = "best" if abs(bb - bm) < 1e-12 else f"within {abs(gap):.1f}% of best"
+            print(f"\nBCE-binary={bb:.4f}  grid-max={bm:.4f}  -> BCE-binary is {verdict}")
+
+
 def main():
     out = BASE / "experiments/main_tables"; out.mkdir(parents=True, exist_ok=True)
     news, ecom = build_news_table(), build_ecom_table()
@@ -95,4 +173,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "loss_label":
+        emit_loss_label_table()
+    else:
+        main()
