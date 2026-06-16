@@ -8,4 +8,4 @@
 | +Listwise (5-seed)** | 0.0352 (+6.3%) | 0.1723 | — |
 | Oracle | 0.3671 | 0.3671 | 0.3671 |
 
-Footnote: generative rows (TIGER-equiv/Focal/Listwise/Oracle) are beam-recall-bounded (rank within the K=50 beam); NRMS/SASRec rank the full catalog. Absolute R@K is not directly comparable across the two; ** p<0.01, * p<0.05 (McNemar vs vanilla).
+Footnote: generative rows (TIGER-equiv/Focal/Listwise/Oracle) are beam-recall-bounded (rank within the K=50 beam); NRMS/SASRec rank the full catalog. Absolute R@K is not directly comparable across the two; ** p<0.01, * p<0.05 (McNemar vs vanilla). (5/5 seeds p<0.05 per-seed McNemar)
