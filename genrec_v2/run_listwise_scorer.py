@@ -36,7 +36,7 @@ from mind_genrec.model.user_encoder import HistorySequenceEncoder, UserEncoderCo
 
 BASE_DIR = Path("/home/lishazhai/workspace/GR4AD")
 SEMANTIC_DIR = BASE_DIR / "output/sbert_baseline_20260508_153306/semantic_ids"
-CKPT_PATH = BASE_DIR / "experiments/genrec_v2_ablation_v2/B_nohot/best_model.pt"
+CKPT_PATH = BASE_DIR / "experiments/genrec_v2_exposure_bias/baseline_retrain/best_model.pt"  # match headline (was B_nohot — review-fix 2026-06-16)
 BEAM_WIDTH = 50
 HIDDEN_DIM = 128
 CODE_LENGTH = 4

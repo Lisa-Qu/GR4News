@@ -66,10 +66,14 @@ def _load(path: str) -> dict:
 def build_news_table() -> str:
     sc = _load("experiments/main_table/results.json")["rows"]
     nrms = _load("experiments/nrms/results.json")["rows"]["nrms"]
-    sig = {c["comparison"]: c for c in _load("experiments/main_table/significance.json")["comparisons"]}
+    sig_raw = _load("experiments/main_table/significance.json")
     van = sc["tiger_equivalent_vanilla"]; foc = sc["pointwise_focal"]; lw = sc["listwise_bce_5seed"]
     def pct(x): return (x - van["R@1"]) / van["R@1"] * 100
-    lw_star = stars_for(sig["listwise_vs_vanilla_hit@1"]["mcnemar_persample"]["p_value"])
+    # Star the REPORTED estimator (5-seed-mean R@1) via the PER-SEED significance, NOT the
+    # majority-vote-ensemble McNemar (which is a different system) — review-fix 2026-06-16.
+    ps = sig_raw.get("listwise_per_seed", {}).get("listwise_hit@1_per_seed", {})
+    lw_star = stars_for(ps["median_p"]) if "median_p" in ps else ""
+    n_sig = ps.get("n_significant_p<0.05"); n_seeds = ps.get("n_seeds")
     rows = [
         ("NRMS (full-catalog)", fmt_cell(nrms["R@1"]), f"{nrms['R@10']:.4f}", f"{nrms['R@50']:.4f}"),
         ("TIGER-equiv (vanilla)", fmt_cell(van["R@1"]), f"{van['R@10']:.4f}", f"{van['R@50']:.4f}"),
@@ -78,7 +82,9 @@ def build_news_table() -> str:
          f"{lw['mean']['R@10']:.4f}", "—"),
         ("Oracle", f"{van['R@50']:.4f}", f"{van['R@50']:.4f}", f"{van['R@50']:.4f}"),
     ]
-    return _render("News (MIND-small, user-split, full-catalog)", ["Method", "R@1", "R@10", "R@50"], rows)
+    seed_note = f" ({n_sig}/{n_seeds} seeds p<0.05 per-seed McNemar)" if n_sig is not None else ""
+    return _render("News (MIND-small, user-split, full-catalog)", ["Method", "R@1", "R@10", "R@50"],
+                   rows, extra_note=seed_note)
 
 
 def build_ecom_table() -> str:
@@ -86,10 +92,13 @@ def build_ecom_table() -> str:
     sasrec = {ds: _load(f"experiments/sasrec_{ds}/results.json")["rows"]["sasrec"] for ds in ("Beauty", "Sports", "Toys")}
     scorers = {ds: _load(f"experiments/{ds.lower()}_scorer/results.json")["rows"] for ds in ("Beauty", "Sports", "Toys")}
     header = ["Method", "Beauty R@10", "Sports R@10", "Toys R@10"]
-    out_rows.append(("SASRec (full-catalog)", *[f"{sasrec[ds]['R@10']:.4f}" for ds in ("Beauty", "Sports", "Toys")]))
-    out_rows.append(("TIGER-equiv (vanilla)", *[f"{scorers[ds]['vanilla']['R@10']:.4f}" for ds in ("Beauty", "Sports", "Toys")]))
-    out_rows.append(("+Listwise (5-seed)", *[f"{scorers[ds]['listwise_bce_5seed']['mean']['R@10']:.4f}" for ds in ("Beauty", "Sports", "Toys")]))
-    out_rows.append(("Oracle", *[f"{scorers[ds]['vanilla']['R@50']:.4f}" for ds in ("Beauty", "Sports", "Toys")]))
+    DS = ("Beauty", "Sports", "Toys")
+    out_rows.append(("SASRec (full-catalog)", *[f"{sasrec[ds]['R@10']:.4f}" for ds in DS]))
+    out_rows.append(("TIGER-equiv (vanilla)", *[f"{scorers[ds]['vanilla']['R@10']:.4f}" for ds in DS]))
+    # +Focal row (symmetric with the News table — review-fix 2026-06-16: was omitted).
+    out_rows.append(("+Pointwise Focal", *[f"{scorers[ds]['pointwise_focal']['R@10']:.4f}" for ds in DS]))
+    out_rows.append(("+Listwise (5-seed)", *[f"{scorers[ds]['listwise_bce_5seed']['mean']['R@10']:.4f}" for ds in DS]))
+    out_rows.append(("Oracle", *[f"{scorers[ds]['vanilla']['R@50']:.4f}" for ds in DS]))
     return _render("E-commerce (Beauty/Sports/Toys, LOO, full-catalog)", header, out_rows)
 
 
@@ -98,19 +107,19 @@ CAVEAT = ("Footnote: generative rows (TIGER-equiv/Focal/Listwise/Oracle) are bea
           "directly comparable across the two; ** p<0.01, * p<0.05 (McNemar vs vanilla).")
 
 
-def _render(title: str, header: list, rows: list) -> str:
+def _render(title: str, header: list, rows: list, extra_note: str = "") -> str:
     md = [f"### {title}", "", "| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
     for r in rows:
         md.append("| " + " | ".join(str(x) for x in r) + " |")
-    md += ["", CAVEAT, ""]
+    md += ["", CAVEAT + extra_note, ""]
     return "\n".join(md)
 
 
 LOSS_LABEL_CAPTION = (
-    "Caption: loss×label diagnostic on MIND (this script's own beam collection + 7-pt λ grid; "
-    "relative loss×label comparison only — the headline uses held-out λ + a dense grid). "
-    "Each cell = best held-out R@1 across the λ sweep; **bold** = grid max. BCE-binary is the "
-    "locked headline choice."
+    "Caption: loss×label diagnostic on MIND, baseline_retrain checkpoint (run_listwise_scorer's own "
+    "beam collection + 7-pt λ grid + val-selection — NOT the headline held-out procedure/dense grid; "
+    "relative loss×label comparison only). Each cell = best R@1 across the λ sweep (including the "
+    "scorer-only 'pure' config); **bold** = grid max. BCE-binary is the locked headline choice."
 )
 
 
@@ -132,7 +141,7 @@ def _render_loss_label(best: dict, fmt: str = "md") -> str:
 
     if fmt == "md":
         header = ["loss \\ label", "binary", "soft"]
-        out = ["### Loss × Label diagnostic (MIND, best held-out R@1)", "",
+        out = ["### Loss × Label diagnostic (MIND, baseline_retrain, best val-selected R@1)", "",
                "| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
         for l in losses:
             out.append("| " + " | ".join([l] + [cell(l, lb) for lb in labels]) + " |")

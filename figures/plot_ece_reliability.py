@@ -44,7 +44,12 @@ def main():
     with torch.no_grad():
         for i in range(0, S.shape[0], 256):
             s = S[i:i+256]; y = Y[i:i+256]
-            van_p.append(torch.softmax(s / CODE_LENGTH, dim=1).reshape(-1).numpy())  # per-candidate vanilla P
+            # Vanilla P = the generator's ABSOLUTE per-candidate confidence exp(avg_logprob) — NOT a
+            # softmax over the 50-beam (which sums to 1 → per-candidate mean forced to 1/K, making the
+            # ECE a pure normalization artifact rather than a calibration measure; review-fix 2026-06-16).
+            # exp(avg_logprob) is the sequence probability the generator assigns; the cascade diagnosis
+            # shows it is OVER-confident, which the scorer's BCE-calibrated sigmoid recalibrates.
+            van_p.append(torch.exp(s / CODE_LENGTH).clamp(0, 1).reshape(-1).numpy())
             lw = scorer(H[i:i+256].to(DEVICE), s.to(DEVICE), user_state=U[i:i+256].to(DEVICE)).cpu()
             sc_p.append(torch.sigmoid(lw).reshape(-1).numpy())
             hit.append(y.reshape(-1).numpy())

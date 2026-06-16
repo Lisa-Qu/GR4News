@@ -21,6 +21,9 @@ def main():
     assert chain_vals == sorted(chain_vals, reverse=True), "cascade recall not monotone non-increasing"
     eo, eg = d["ece_oracle"], d["ece_greedy"]
     assert len(eo) == len(eg) == 4, "expected 4 positions of ECE"
+    # Headline claim = greedy over-confidence: at later decode positions greedy ECE blows up far
+    # above oracle (the cascade collapse the scorer addresses). Assert it (review-fix 2026-06-16).
+    assert all(eg[t] > eo[t] for t in (2, 3)), f"greedy ECE not > oracle at pos2/3: greedy={eg} oracle={eo}"
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
     ax1.plot(range(4), chain_vals, "o-", color="#1f77b4")

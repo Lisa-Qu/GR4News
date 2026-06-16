@@ -22,8 +22,10 @@ def main():
         xs = sorted(curve); ys = [curve[x] for x in xs]
         van = curve.get(0.0)
         rel = [y / van for y in ys] if van else ys      # normalize to λ=0 (vanilla) for cross-setting
-        ax.plot(xs, rel, "o-", label=f"{name} (λ*={r.get('best_listwise_lambda')}, SE={r.get('se_vanilla','?')})")
-        rows.append((name, r.get("best_listwise_lambda"), r.get("se_vanilla")))
+        sv, ss = r.get("se_vanilla"), r.get("se_scorer")
+        se_lbl = f"SE {sv:.0%}→{ss:.0%}" if (sv is not None and ss is not None) else "SE ?"
+        ax.plot(xs, rel, "o-", label=f"{name} (Listwise λ*={r.get('best_listwise_lambda')}, {se_lbl})")
+        rows.append((name, r.get("best_listwise_lambda"), sv, ss))
     ax.axhline(1.0, color="k", ls=":", lw=0.8)
     ax.set_xlabel("λ (fusion weight)"); ax.set_ylabel("held-out R@1 / vanilla R@1")
     ax.set_title("λ-sensitivity (held-out, Listwise) across settings"); ax.legend(fontsize=8)
