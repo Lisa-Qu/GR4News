@@ -1,0 +1,457 @@
+Dataset=Sports  code_length=7  output_dir=/data/lishazhai/workspace/GR4AD/experiments/sports_scorer
+Checkpoint=/data/lishazhai/workspace/GRAM/log/Sports/7_20260611_0432/id_0_rec_30/model_rec_phase_1_epoch_30.pt
+Loading GRAM model...
+You are using the default legacy behaviour of the <class 'transformers.models.t5.tokenization_t5.T5Tokenizer'>. This is expected, and simply means that the `legacy` (previous) behavior will be used so nothing changes for you. If you want to use the new behaviour, set `legacy=False`. This should only be set if you understand what it means, and thoroughly read the reason why this was added as explained in https://github.com/huggingface/transformers/pull/24565
+Loaded GRAM model from /data/lishazhai/workspace/GRAM/log/Sports/7_20260611_0432/id_0_rec_30/model_rec_phase_1_epoch_30.pt
+  d_model=512, decoder_layers=6
+
+Building val/test datasets...
+Load item id from /home/lishazhai/workspace/GRAM/rec_datasets/Sports/item_generative_indexing_hierarchy_v1_c32_l7_len32768_split.txt
+Load item id from /home/lishazhai/workspace/GRAM/rec_datasets/Sports/item_generative_indexing_hierarchy_v1_c32_l7_len32768_split.txt
+  Val: 35598 samples, Test: 35598 samples
+
+Collecting val beam data...
+/data/common/conda_envs_shared/lishazhai/gram/lib/python3.10/site-packages/transformers/tokenization_utils_base.py:2829: FutureWarning: The `pad_to_max_length` argument is deprecated and will be removed in a future version, use `padding=True` or `padding='longest'` to pad to the longest sequence in the batch, or use `padding='max_length'` to pad to a max length. In this case, you can give a specific length with `max_length` (e.g. `max_length=45`) or leave max_length to None to pad to the maximal input size of the model (e.g. 512 for Bert).
+  warnings.warn(
+/data/common/conda_envs_shared/lishazhai/gram/lib/python3.10/site-packages/transformers/tokenization_utils_base.py:2829: FutureWarning: The `pad_to_max_length` argument is deprecated and will be removed in a future version, use `padding=True` or `padding='longest'` to pad to the longest sequence in the batch, or use `padding='max_length'` to pad to a max length. In this case, you can give a specific length with `max_length` (e.g. `max_length=45`) or leave max_length to None to pad to the maximal input size of the model (e.g. 512 for Bert).
+  warnings.warn(
+  val beam collected: 200/35598 [54s]
+  val beam collected: 400/35598 [106s]
+  val beam collected: 600/35598 [157s]
+  val beam collected: 800/35598 [209s]
+  val beam collected: 1000/35598 [259s]
+  val beam collected: 1200/35598 [309s]
+  val beam collected: 1400/35598 [358s]
+  val beam collected: 1600/35598 [409s]
+  val beam collected: 1800/35598 [460s]
+  val beam collected: 2000/35598 [514s]
+  val beam collected: 2200/35598 [564s]
+  val beam collected: 2400/35598 [615s]
+  val beam collected: 2600/35598 [666s]
+  val beam collected: 2800/35598 [718s]
+  val beam collected: 3000/35598 [770s]
+  val beam collected: 3200/35598 [822s]
+  val beam collected: 3400/35598 [878s]
+  val beam collected: 3600/35598 [931s]
+  val beam collected: 3800/35598 [986s]
+  val beam collected: 4000/35598 [1041s]
+  val beam collected: 4200/35598 [1095s]
+  val beam collected: 4400/35598 [1148s]
+  val beam collected: 4600/35598 [1202s]
+  val beam collected: 4800/35598 [1255s]
+  val beam collected: 5000/35598 [1308s]
+  val beam collected: 5200/35598 [1361s]
+  val beam collected: 5400/35598 [1414s]
+  val beam collected: 5600/35598 [1465s]
+  val beam collected: 5800/35598 [1517s]
+  val beam collected: 6000/35598 [1570s]
+  val beam collected: 6200/35598 [1624s]
+  val beam collected: 6400/35598 [1675s]
+  val beam collected: 6600/35598 [1728s]
+  val beam collected: 6800/35598 [1782s]
+  val beam collected: 7000/35598 [1835s]
+  val beam collected: 7200/35598 [1889s]
+  val beam collected: 7400/35598 [1943s]
+  val beam collected: 7600/35598 [1996s]
+  val beam collected: 7800/35598 [2049s]
+  val beam collected: 8000/35598 [2102s]
+  val beam collected: 8200/35598 [2156s]
+  val beam collected: 8400/35598 [2210s]
+  val beam collected: 8600/35598 [2264s]
+  val beam collected: 8800/35598 [2315s]
+  val beam collected: 9000/35598 [2368s]
+  val beam collected: 9200/35598 [2422s]
+  val beam collected: 9400/35598 [2475s]
+  val beam collected: 9600/35598 [2528s]
+  val beam collected: 9800/35598 [2580s]
+  val beam collected: 10000/35598 [2632s]
+  val beam collected: 10200/35598 [2684s]
+  val beam collected: 10400/35598 [2734s]
+  val beam collected: 10600/35598 [2786s]
+  val beam collected: 10800/35598 [2837s]
+  val beam collected: 11000/35598 [2886s]
+  val beam collected: 11200/35598 [2936s]
+  val beam collected: 11400/35598 [2988s]
+  val beam collected: 11600/35598 [3038s]
+  val beam collected: 11800/35598 [3089s]
+  val beam collected: 12000/35598 [3140s]
+  val beam collected: 12200/35598 [3191s]
+  val beam collected: 12400/35598 [3242s]
+  val beam collected: 12600/35598 [3293s]
+  val beam collected: 12800/35598 [3344s]
+  val beam collected: 13000/35598 [3394s]
+  val beam collected: 13200/35598 [3445s]
+  val beam collected: 13400/35598 [3495s]
+  val beam collected: 13600/35598 [3546s]
+  val beam collected: 13800/35598 [3595s]
+  val beam collected: 14000/35598 [3645s]
+  val beam collected: 14200/35598 [3695s]
+  val beam collected: 14400/35598 [3747s]
+  val beam collected: 14600/35598 [3796s]
+  val beam collected: 14800/35598 [3848s]
+  val beam collected: 15000/35598 [3900s]
+  val beam collected: 15200/35598 [3951s]
+  val beam collected: 15400/35598 [4001s]
+  val beam collected: 15600/35598 [4052s]
+  val beam collected: 15800/35598 [4102s]
+  val beam collected: 16000/35598 [4152s]
+  val beam collected: 16200/35598 [4202s]
+  val beam collected: 16400/35598 [4251s]
+  val beam collected: 16600/35598 [4302s]
+  val beam collected: 16800/35598 [4352s]
+  val beam collected: 17000/35598 [4402s]
+  val beam collected: 17200/35598 [4452s]
+  val beam collected: 17400/35598 [4500s]
+  val beam collected: 17600/35598 [4549s]
+  val beam collected: 17800/35598 [4598s]
+  val beam collected: 18000/35598 [4648s]
+  val beam collected: 18200/35598 [4700s]
+  val beam collected: 18400/35598 [4749s]
+  val beam collected: 18600/35598 [4800s]
+  val beam collected: 18800/35598 [4849s]
+  val beam collected: 19000/35598 [4899s]
+  val beam collected: 19200/35598 [4950s]
+  val beam collected: 19400/35598 [5001s]
+  val beam collected: 19600/35598 [5050s]
+  val beam collected: 19800/35598 [5100s]
+  val beam collected: 20000/35598 [5150s]
+  val beam collected: 20200/35598 [5200s]
+  val beam collected: 20400/35598 [5249s]
+  val beam collected: 20600/35598 [5300s]
+  val beam collected: 20800/35598 [5349s]
+  val beam collected: 21000/35598 [5399s]
+  val beam collected: 21200/35598 [5450s]
+  val beam collected: 21400/35598 [5499s]
+  val beam collected: 21600/35598 [5548s]
+  val beam collected: 21800/35598 [5597s]
+  val beam collected: 22000/35598 [5647s]
+  val beam collected: 22200/35598 [5698s]
+  val beam collected: 22400/35598 [5748s]
+  val beam collected: 22600/35598 [5798s]
+  val beam collected: 22800/35598 [5849s]
+  val beam collected: 23000/35598 [5900s]
+  val beam collected: 23200/35598 [5950s]
+  val beam collected: 23400/35598 [6002s]
+  val beam collected: 23600/35598 [6053s]
+  val beam collected: 23800/35598 [6102s]
+  val beam collected: 24000/35598 [6152s]
+  val beam collected: 24200/35598 [6203s]
+  val beam collected: 24400/35598 [6253s]
+  val beam collected: 24600/35598 [6305s]
+  val beam collected: 24800/35598 [6357s]
+  val beam collected: 25000/35598 [6408s]
+  val beam collected: 25200/35598 [6458s]
+  val beam collected: 25400/35598 [6509s]
+  val beam collected: 25600/35598 [6559s]
+  val beam collected: 25800/35598 [6609s]
+  val beam collected: 26000/35598 [6659s]
+  val beam collected: 26200/35598 [6709s]
+  val beam collected: 26400/35598 [6757s]
+  val beam collected: 26600/35598 [6806s]
+  val beam collected: 26800/35598 [6855s]
+  val beam collected: 27000/35598 [6903s]
+  val beam collected: 27200/35598 [6952s]
+  val beam collected: 27400/35598 [7001s]
+  val beam collected: 27600/35598 [7049s]
+  val beam collected: 27800/35598 [7099s]
+  val beam collected: 28000/35598 [7148s]
+  val beam collected: 28200/35598 [7196s]
+  val beam collected: 28400/35598 [7244s]
+  val beam collected: 28600/35598 [7293s]
+  val beam collected: 28800/35598 [7342s]
+  val beam collected: 29000/35598 [7391s]
+  val beam collected: 29200/35598 [7439s]
+  val beam collected: 29400/35598 [7488s]
+  val beam collected: 29600/35598 [7537s]
+  val beam collected: 29800/35598 [7587s]
+  val beam collected: 30000/35598 [7637s]
+  val beam collected: 30200/35598 [7686s]
+  val beam collected: 30400/35598 [7735s]
+  val beam collected: 30600/35598 [7784s]
+  val beam collected: 30800/35598 [7833s]
+  val beam collected: 31000/35598 [7883s]
+  val beam collected: 31200/35598 [7932s]
+  val beam collected: 31400/35598 [7981s]
+  val beam collected: 31600/35598 [8030s]
+  val beam collected: 31800/35598 [8080s]
+  val beam collected: 32000/35598 [8129s]
+  val beam collected: 32200/35598 [8178s]
+  val beam collected: 32400/35598 [8226s]
+  val beam collected: 32600/35598 [8276s]
+  val beam collected: 32800/35598 [8323s]
+  val beam collected: 33000/35598 [8371s]
+  val beam collected: 33200/35598 [8418s]
+  val beam collected: 33400/35598 [8466s]
+  val beam collected: 33600/35598 [8513s]
+  val beam collected: 33800/35598 [8561s]
+  val beam collected: 34000/35598 [8608s]
+  val beam collected: 34200/35598 [8657s]
+  val beam collected: 34400/35598 [8704s]
+  val beam collected: 34600/35598 [8751s]
+  val beam collected: 34800/35598 [8799s]
+  val beam collected: 35000/35598 [8845s]
+  val beam collected: 35200/35598 [8892s]
+  val beam collected: 35400/35598 [8939s]
+  35598 val samples [8987s]
+  Saved to /data/lishazhai/workspace/GR4AD/experiments/sports_scorer/beam_data_val.pt
+  R@50 (hit in beam): 0.1501 (15.01%)
+
+Collecting test beam data...
+  test beam collected: 200/35598 [53s]
+  test beam collected: 400/35598 [108s]
+  test beam collected: 600/35598 [162s]
+  test beam collected: 800/35598 [215s]
+  test beam collected: 1000/35598 [267s]
+  test beam collected: 1200/35598 [319s]
+  test beam collected: 1400/35598 [371s]
+  test beam collected: 1600/35598 [424s]
+  test beam collected: 1800/35598 [477s]
+  test beam collected: 2000/35598 [533s]
+  test beam collected: 2200/35598 [586s]
+  test beam collected: 2400/35598 [638s]
+  test beam collected: 2600/35598 [692s]
+  test beam collected: 2800/35598 [746s]
+  test beam collected: 3000/35598 [799s]
+  test beam collected: 3200/35598 [853s]
+  test beam collected: 3400/35598 [908s]
+  test beam collected: 3600/35598 [963s]
+  test beam collected: 3800/35598 [1017s]
+  test beam collected: 4000/35598 [1073s]
+  test beam collected: 4200/35598 [1127s]
+  test beam collected: 4400/35598 [1181s]
+  test beam collected: 4600/35598 [1234s]
+  test beam collected: 4800/35598 [1288s]
+  test beam collected: 5000/35598 [1341s]
+  test beam collected: 5200/35598 [1394s]
+  test beam collected: 5400/35598 [1447s]
+  test beam collected: 5600/35598 [1499s]
+  test beam collected: 5800/35598 [1551s]
+  test beam collected: 6000/35598 [1606s]
+  test beam collected: 6200/35598 [1661s]
+  test beam collected: 6400/35598 [1714s]
+  test beam collected: 6600/35598 [1767s]
+  test beam collected: 6800/35598 [1821s]
+  test beam collected: 7000/35598 [1875s]
+  test beam collected: 7200/35598 [1929s]
+  test beam collected: 7400/35598 [1984s]
+  test beam collected: 7600/35598 [2038s]
+  test beam collected: 7800/35598 [2092s]
+  test beam collected: 8000/35598 [2147s]
+  test beam collected: 8200/35598 [2202s]
+  test beam collected: 8400/35598 [2257s]
+  test beam collected: 8600/35598 [2311s]
+  test beam collected: 8800/35598 [2364s]
+  test beam collected: 9000/35598 [2422s]
+  test beam collected: 9200/35598 [2479s]
+  test beam collected: 9400/35598 [2537s]
+  test beam collected: 9600/35598 [2591s]
+  test beam collected: 9800/35598 [2645s]
+  test beam collected: 10000/35598 [2698s]
+  test beam collected: 10200/35598 [2751s]
+  test beam collected: 10400/35598 [2804s]
+  test beam collected: 10600/35598 [2857s]
+  test beam collected: 10800/35598 [2910s]
+  test beam collected: 11000/35598 [2961s]
+  test beam collected: 11200/35598 [3013s]
+  test beam collected: 11400/35598 [3066s]
+  test beam collected: 11600/35598 [3117s]
+  test beam collected: 11800/35598 [3171s]
+  test beam collected: 12000/35598 [3224s]
+  test beam collected: 12200/35598 [3276s]
+  test beam collected: 12400/35598 [3327s]
+  test beam collected: 12600/35598 [3378s]
+  test beam collected: 12800/35598 [3429s]
+  test beam collected: 13000/35598 [3481s]
+  test beam collected: 13200/35598 [3533s]
+  test beam collected: 13400/35598 [3585s]
+  test beam collected: 13600/35598 [3636s]
+  test beam collected: 13800/35598 [3686s]
+  test beam collected: 14000/35598 [3736s]
+  test beam collected: 14200/35598 [3787s]
+  test beam collected: 14400/35598 [3842s]
+  test beam collected: 14600/35598 [3893s]
+  test beam collected: 14800/35598 [3945s]
+  test beam collected: 15000/35598 [3998s]
+  test beam collected: 15200/35598 [4050s]
+  test beam collected: 15400/35598 [4103s]
+  test beam collected: 15600/35598 [4156s]
+  test beam collected: 15800/35598 [4209s]
+  test beam collected: 16000/35598 [4261s]
+  test beam collected: 16200/35598 [4314s]
+  test beam collected: 16400/35598 [4366s]
+  test beam collected: 16600/35598 [4419s]
+  test beam collected: 16800/35598 [4472s]
+  test beam collected: 17000/35598 [4526s]
+  test beam collected: 17200/35598 [4578s]
+  test beam collected: 17400/35598 [4630s]
+  test beam collected: 17600/35598 [4681s]
+  test beam collected: 17800/35598 [4732s]
+  test beam collected: 18000/35598 [4784s]
+  test beam collected: 18200/35598 [4836s]
+  test beam collected: 18400/35598 [4887s]
+  test beam collected: 18600/35598 [4939s]
+  test beam collected: 18800/35598 [4990s]
+  test beam collected: 19000/35598 [5041s]
+  test beam collected: 19200/35598 [5094s]
+  test beam collected: 19400/35598 [5146s]
+  test beam collected: 19600/35598 [5196s]
+  test beam collected: 19800/35598 [5247s]
+  test beam collected: 20000/35598 [5298s]
+  test beam collected: 20200/35598 [5349s]
+  test beam collected: 20400/35598 [5400s]
+  test beam collected: 20600/35598 [5452s]
+  test beam collected: 20800/35598 [5503s]
+  test beam collected: 21000/35598 [5556s]
+  test beam collected: 21200/35598 [5609s]
+  test beam collected: 21400/35598 [5658s]
+  test beam collected: 21600/35598 [5707s]
+  test beam collected: 21800/35598 [5757s]
+  test beam collected: 22000/35598 [5807s]
+  test beam collected: 22200/35598 [5858s]
+  test beam collected: 22400/35598 [5908s]
+  test beam collected: 22600/35598 [5959s]
+  test beam collected: 22800/35598 [6010s]
+  test beam collected: 23000/35598 [6061s]
+  test beam collected: 23200/35598 [6112s]
+  test beam collected: 23400/35598 [6163s]
+  test beam collected: 23600/35598 [6213s]
+  test beam collected: 23800/35598 [6263s]
+  test beam collected: 24000/35598 [6314s]
+  test beam collected: 24200/35598 [6364s]
+  test beam collected: 24400/35598 [6414s]
+  test beam collected: 24600/35598 [6466s]
+  test beam collected: 24800/35598 [6517s]
+  test beam collected: 25000/35598 [6568s]
+  test beam collected: 25200/35598 [6618s]
+  test beam collected: 25400/35598 [6668s]
+  test beam collected: 25600/35598 [6719s]
+  test beam collected: 25800/35598 [6769s]
+  test beam collected: 26000/35598 [6820s]
+  test beam collected: 26200/35598 [6870s]
+  test beam collected: 26400/35598 [6920s]
+  test beam collected: 26600/35598 [6970s]
+  test beam collected: 26800/35598 [7020s]
+  test beam collected: 27000/35598 [7070s]
+  test beam collected: 27200/35598 [7121s]
+  test beam collected: 27400/35598 [7171s]
+  test beam collected: 27600/35598 [7220s]
+  test beam collected: 27800/35598 [7271s]
+  test beam collected: 28000/35598 [7321s]
+  test beam collected: 28200/35598 [7371s]
+  test beam collected: 28400/35598 [7421s]
+  test beam collected: 28600/35598 [7471s]
+  test beam collected: 28800/35598 [7521s]
+  test beam collected: 29000/35598 [7571s]
+  test beam collected: 29200/35598 [7620s]
+  test beam collected: 29400/35598 [7670s]
+  test beam collected: 29600/35598 [7719s]
+  test beam collected: 29800/35598 [7769s]
+  test beam collected: 30000/35598 [7818s]
+  test beam collected: 30200/35598 [7866s]
+  test beam collected: 30400/35598 [7916s]
+  test beam collected: 30600/35598 [7965s]
+  test beam collected: 30800/35598 [8014s]
+  test beam collected: 31000/35598 [8062s]
+  test beam collected: 31200/35598 [8111s]
+  test beam collected: 31400/35598 [8160s]
+  test beam collected: 31600/35598 [8209s]
+  test beam collected: 31800/35598 [8258s]
+  test beam collected: 32000/35598 [8308s]
+  test beam collected: 32200/35598 [8357s]
+  test beam collected: 32400/35598 [8406s]
+  test beam collected: 32600/35598 [8456s]
+  test beam collected: 32800/35598 [8505s]
+  test beam collected: 33000/35598 [8556s]
+  test beam collected: 33200/35598 [8605s]
+  test beam collected: 33400/35598 [8654s]
+  test beam collected: 33600/35598 [8703s]
+  test beam collected: 33800/35598 [8752s]
+  test beam collected: 34000/35598 [8801s]
+  test beam collected: 34200/35598 [8850s]
+  test beam collected: 34400/35598 [8899s]
+  test beam collected: 34600/35598 [8948s]
+  test beam collected: 34800/35598 [8997s]
+  test beam collected: 35000/35598 [9045s]
+  test beam collected: 35200/35598 [9094s]
+  test beam collected: 35400/35598 [9143s]
+  35598 test samples [9193s]
+  Saved to /data/lishazhai/workspace/GR4AD/experiments/sports_scorer/beam_data_test.pt
+  R@50 (hit in beam): 0.1207 (12.07%)
+
+Val:  R@1=0.0193, R@5=0.0496, R@10=0.0715, R@50=0.1501
+
+============================================================
+PART 1: Pointwise Focal BCE
+============================================================
+  λ-selection split: 24919 pool (scorer-train) / 10679 held-out (λ-select)
+Training Pointwise Focal BCE (train=focal, early-stop=BCE)...
+  Done
+Selecting Focal lambda on held-out (R@1 argmax over grid)...
+  lambda=0.0   held-out R@1=0.0181
+  lambda=0.02  held-out R@1=0.0190
+  lambda=0.05  held-out R@1=0.0180
+  lambda=0.1   held-out R@1=0.0175
+  lambda=0.2   held-out R@1=0.0156
+  lambda=0.35  held-out R@1=0.0133
+  lambda=0.5   held-out R@1=0.0123
+  lambda=0.7   held-out R@1=0.0117
+  lambda=1.0   held-out R@1=0.0116
+  -> best Focal lambda=0.02 (held-out R@1=0.0190)
+
+============================================================
+PART 2: 5-seed Listwise BCE
+============================================================
+
+Seed 42:
+/data/common/conda_envs_shared/lishazhai/gram/lib/python3.10/site-packages/torch/nn/modules/transformer.py:282: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(f"enable_nested_tensor is True, but self.use_nested_tensor is False because {why_not_sparsity_fast_path}")
+  15 ep, val_loss=0.0201
+
+Seed 123:
+  13 ep, val_loss=0.0199
+
+Seed 7:
+  14 ep, val_loss=0.0194
+
+Seed 999:
+  15 ep, val_loss=0.0193
+
+Seed 2024:
+  18 ep, val_loss=0.0189
+Selecting Listwise lambda on held-out (mean R@1 across seeds, same grid)...
+  lambda=0.0   held-out mean R@1=0.0181
+  lambda=0.02  held-out mean R@1=0.0200
+  lambda=0.05  held-out mean R@1=0.0183
+  lambda=0.1   held-out mean R@1=0.0160
+  lambda=0.2   held-out mean R@1=0.0141
+  lambda=0.35  held-out mean R@1=0.0130
+  lambda=0.5   held-out mean R@1=0.0126
+  lambda=0.7   held-out mean R@1=0.0126
+  lambda=1.0   held-out mean R@1=0.0126
+  -> best Listwise lambda=0.02 (val mean R@1=0.0200)
+
+============================================================
+PART 3: Test evaluation
+============================================================
+
+Method                                        R@1      R@5     R@10     R@50   vs Van
+----------------------------------------------------------------------------------------
+Vanilla BS-50                              0.0139   0.0394   0.0561   0.1207     base
+Pointwise Focal λ=0.02                     0.0144   0.0400   0.0601   0.1207    +3.8%
+
+Seed          R@1   vs Van      R@5     R@10
+--------------------------------------------------
+42         0.0150    +8.1%   0.0430   0.0608
+123        0.0144    +4.0%   0.0426   0.0600
+7          0.0153   +10.5%   0.0426   0.0610
+999        0.0146    +4.9%   0.0424   0.0606
+2024       0.0146    +5.1%   0.0426   0.0606
+Mean±Std  0.0148±0.0003    +6.5%
+
+--- Oracle (perfect ranking) ---
+Oracle R@1 = R@50 = 0.1207
+Scoring Efficiency: Vanilla=11.5%, Best Scorer=12.3%
+
+Wrote /data/lishazhai/workspace/GR4AD/experiments/sports_scorer/results.json and per_user_hits.npz
+
+Done [326 min].

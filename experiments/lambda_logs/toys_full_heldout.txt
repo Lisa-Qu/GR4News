@@ -1,0 +1,288 @@
+Dataset=Toys  code_length=5  output_dir=/data/lishazhai/workspace/GR4AD/experiments/toys_scorer
+Checkpoint=/data/lishazhai/workspace/GRAM/log/Toys/7_20260611_0643/id_0_rec_30/model_rec_phase_1_epoch_30.pt
+Loading GRAM model...
+You are using the default legacy behaviour of the <class 'transformers.models.t5.tokenization_t5.T5Tokenizer'>. This is expected, and simply means that the `legacy` (previous) behavior will be used so nothing changes for you. If you want to use the new behaviour, set `legacy=False`. This should only be set if you understand what it means, and thoroughly read the reason why this was added as explained in https://github.com/huggingface/transformers/pull/24565
+Loaded GRAM model from /data/lishazhai/workspace/GRAM/log/Toys/7_20260611_0643/id_0_rec_30/model_rec_phase_1_epoch_30.pt
+  d_model=512, decoder_layers=6
+
+Building val/test datasets...
+Load item id from /home/lishazhai/workspace/GRAM/rec_datasets/Toys/item_generative_indexing_hierarchy_v1_c32_l5_len32768_split.txt
+Load item id from /home/lishazhai/workspace/GRAM/rec_datasets/Toys/item_generative_indexing_hierarchy_v1_c32_l5_len32768_split.txt
+  Val: 19412 samples, Test: 19412 samples
+
+Collecting val beam data...
+/data/common/conda_envs_shared/lishazhai/gram/lib/python3.10/site-packages/transformers/tokenization_utils_base.py:2829: FutureWarning: The `pad_to_max_length` argument is deprecated and will be removed in a future version, use `padding=True` or `padding='longest'` to pad to the longest sequence in the batch, or use `padding='max_length'` to pad to a max length. In this case, you can give a specific length with `max_length` (e.g. `max_length=45`) or leave max_length to None to pad to the maximal input size of the model (e.g. 512 for Bert).
+  warnings.warn(
+/data/common/conda_envs_shared/lishazhai/gram/lib/python3.10/site-packages/transformers/tokenization_utils_base.py:2829: FutureWarning: The `pad_to_max_length` argument is deprecated and will be removed in a future version, use `padding=True` or `padding='longest'` to pad to the longest sequence in the batch, or use `padding='max_length'` to pad to a max length. In this case, you can give a specific length with `max_length` (e.g. `max_length=45`) or leave max_length to None to pad to the maximal input size of the model (e.g. 512 for Bert).
+  warnings.warn(
+  val beam collected: 200/19412 [41s]
+  val beam collected: 400/19412 [81s]
+  val beam collected: 600/19412 [121s]
+  val beam collected: 800/19412 [160s]
+  val beam collected: 1000/19412 [201s]
+  val beam collected: 1200/19412 [240s]
+  val beam collected: 1400/19412 [280s]
+  val beam collected: 1600/19412 [320s]
+  val beam collected: 1800/19412 [360s]
+  val beam collected: 2000/19412 [401s]
+  val beam collected: 2200/19412 [440s]
+  val beam collected: 2400/19412 [480s]
+  val beam collected: 2600/19412 [519s]
+  val beam collected: 2800/19412 [557s]
+  val beam collected: 3000/19412 [597s]
+  val beam collected: 3200/19412 [637s]
+  val beam collected: 3400/19412 [676s]
+  val beam collected: 3600/19412 [715s]
+  val beam collected: 3800/19412 [754s]
+  val beam collected: 4000/19412 [793s]
+  val beam collected: 4200/19412 [832s]
+  val beam collected: 4400/19412 [872s]
+  val beam collected: 4600/19412 [912s]
+  val beam collected: 4800/19412 [951s]
+  val beam collected: 5000/19412 [991s]
+  val beam collected: 5200/19412 [1031s]
+  val beam collected: 5400/19412 [1070s]
+  val beam collected: 5600/19412 [1110s]
+  val beam collected: 5800/19412 [1150s]
+  val beam collected: 6000/19412 [1190s]
+  val beam collected: 6200/19412 [1229s]
+  val beam collected: 6400/19412 [1269s]
+  val beam collected: 6600/19412 [1308s]
+  val beam collected: 6800/19412 [1348s]
+  val beam collected: 7000/19412 [1388s]
+  val beam collected: 7200/19412 [1429s]
+  val beam collected: 7400/19412 [1470s]
+  val beam collected: 7600/19412 [1511s]
+  val beam collected: 7800/19412 [1552s]
+  val beam collected: 8000/19412 [1593s]
+  val beam collected: 8200/19412 [1635s]
+  val beam collected: 8400/19412 [1676s]
+  val beam collected: 8600/19412 [1717s]
+  val beam collected: 8800/19412 [1757s]
+  val beam collected: 9000/19412 [1798s]
+  val beam collected: 9200/19412 [1840s]
+  val beam collected: 9400/19412 [1881s]
+  val beam collected: 9600/19412 [1923s]
+  val beam collected: 9800/19412 [1964s]
+  val beam collected: 10000/19412 [2004s]
+  val beam collected: 10200/19412 [2044s]
+  val beam collected: 10400/19412 [2084s]
+  val beam collected: 10600/19412 [2124s]
+  val beam collected: 10800/19412 [2164s]
+  val beam collected: 11000/19412 [2206s]
+  val beam collected: 11200/19412 [2248s]
+  val beam collected: 11400/19412 [2289s]
+  val beam collected: 11600/19412 [2331s]
+  val beam collected: 11800/19412 [2372s]
+  val beam collected: 12000/19412 [2413s]
+  val beam collected: 12200/19412 [2454s]
+  val beam collected: 12400/19412 [2496s]
+  val beam collected: 12600/19412 [2537s]
+  val beam collected: 12800/19412 [2578s]
+  val beam collected: 13000/19412 [2619s]
+  val beam collected: 13200/19412 [2660s]
+  val beam collected: 13400/19412 [2702s]
+  val beam collected: 13600/19412 [2743s]
+  val beam collected: 13800/19412 [2783s]
+  val beam collected: 14000/19412 [2823s]
+  val beam collected: 14200/19412 [2863s]
+  val beam collected: 14400/19412 [2903s]
+  val beam collected: 14600/19412 [2943s]
+  val beam collected: 14800/19412 [2983s]
+  val beam collected: 15000/19412 [3023s]
+  val beam collected: 15200/19412 [3063s]
+  val beam collected: 15400/19412 [3103s]
+  val beam collected: 15600/19412 [3143s]
+  val beam collected: 15800/19412 [3183s]
+  val beam collected: 16000/19412 [3223s]
+  val beam collected: 16200/19412 [3263s]
+  val beam collected: 16400/19412 [3303s]
+  val beam collected: 16600/19412 [3344s]
+  val beam collected: 16800/19412 [3391s]
+  val beam collected: 17000/19412 [3431s]
+  val beam collected: 17200/19412 [3472s]
+  val beam collected: 17400/19412 [3522s]
+  val beam collected: 17600/19412 [3562s]
+  val beam collected: 17800/19412 [3613s]
+  val beam collected: 18000/19412 [3656s]
+  val beam collected: 18200/19412 [3704s]
+  val beam collected: 18400/19412 [3752s]
+  val beam collected: 18600/19412 [3802s]
+  val beam collected: 18800/19412 [3855s]
+  val beam collected: 19000/19412 [3902s]
+  val beam collected: 19200/19412 [3948s]
+  val beam collected: 19400/19412 [3991s]
+  19412 val samples [3995s]
+  Saved to /data/lishazhai/workspace/GR4AD/experiments/toys_scorer/beam_data_val.pt
+  R@50 (hit in beam): 0.1999 (19.99%)
+
+Collecting test beam data...
+  test beam collected: 200/19412 [42s]
+  test beam collected: 400/19412 [84s]
+  test beam collected: 600/19412 [125s]
+  test beam collected: 800/19412 [166s]
+  test beam collected: 1000/19412 [208s]
+  test beam collected: 1200/19412 [249s]
+  test beam collected: 1400/19412 [292s]
+  test beam collected: 1600/19412 [333s]
+  test beam collected: 1800/19412 [375s]
+  test beam collected: 2000/19412 [417s]
+  test beam collected: 2200/19412 [458s]
+  test beam collected: 2400/19412 [499s]
+  test beam collected: 2600/19412 [539s]
+  test beam collected: 2800/19412 [578s]
+  test beam collected: 3000/19412 [619s]
+  test beam collected: 3200/19412 [660s]
+  test beam collected: 3400/19412 [701s]
+  test beam collected: 3600/19412 [742s]
+  test beam collected: 3800/19412 [783s]
+  test beam collected: 4000/19412 [825s]
+  test beam collected: 4200/19412 [865s]
+  test beam collected: 4400/19412 [907s]
+  test beam collected: 4600/19412 [949s]
+  test beam collected: 4800/19412 [990s]
+  test beam collected: 5000/19412 [1031s]
+  test beam collected: 5200/19412 [1074s]
+  test beam collected: 5400/19412 [1115s]
+  test beam collected: 5600/19412 [1158s]
+  test beam collected: 5800/19412 [1201s]
+  test beam collected: 6000/19412 [1243s]
+  test beam collected: 6200/19412 [1285s]
+  test beam collected: 6400/19412 [1327s]
+  test beam collected: 6600/19412 [1369s]
+  test beam collected: 6800/19412 [1411s]
+  test beam collected: 7000/19412 [1453s]
+  test beam collected: 7200/19412 [1496s]
+  test beam collected: 7400/19412 [1538s]
+  test beam collected: 7600/19412 [1581s]
+  test beam collected: 7800/19412 [1623s]
+  test beam collected: 8000/19412 [1666s]
+  test beam collected: 8200/19412 [1708s]
+  test beam collected: 8400/19412 [1750s]
+  test beam collected: 8600/19412 [1793s]
+  test beam collected: 8800/19412 [1836s]
+  test beam collected: 9000/19412 [1880s]
+  test beam collected: 9200/19412 [1926s]
+  test beam collected: 9400/19412 [1968s]
+  test beam collected: 9600/19412 [2013s]
+  test beam collected: 9800/19412 [2059s]
+  test beam collected: 10000/19412 [2101s]
+  test beam collected: 10200/19412 [2144s]
+  test beam collected: 10400/19412 [2186s]
+  test beam collected: 10600/19412 [2228s]
+  test beam collected: 10800/19412 [2270s]
+  test beam collected: 11000/19412 [2313s]
+  test beam collected: 11200/19412 [2356s]
+  test beam collected: 11400/19412 [2398s]
+  test beam collected: 11600/19412 [2440s]
+  test beam collected: 11800/19412 [2482s]
+  test beam collected: 12000/19412 [2525s]
+  test beam collected: 12200/19412 [2567s]
+  test beam collected: 12400/19412 [2610s]
+  test beam collected: 12600/19412 [2652s]
+  test beam collected: 12800/19412 [2694s]
+  test beam collected: 13000/19412 [2735s]
+  test beam collected: 13200/19412 [2777s]
+  test beam collected: 13400/19412 [2819s]
+  test beam collected: 13600/19412 [2860s]
+  test beam collected: 13800/19412 [2901s]
+  test beam collected: 14000/19412 [2943s]
+  test beam collected: 14200/19412 [2984s]
+  test beam collected: 14400/19412 [3026s]
+  test beam collected: 14600/19412 [3068s]
+  test beam collected: 14800/19412 [3110s]
+  test beam collected: 15000/19412 [3152s]
+  test beam collected: 15200/19412 [3194s]
+  test beam collected: 15400/19412 [3235s]
+  test beam collected: 15600/19412 [3277s]
+  test beam collected: 15800/19412 [3318s]
+  test beam collected: 16000/19412 [3364s]
+  test beam collected: 16200/19412 [3414s]
+  test beam collected: 16400/19412 [3455s]
+  test beam collected: 16600/19412 [3497s]
+  test beam collected: 16800/19412 [3539s]
+  test beam collected: 17000/19412 [3580s]
+  test beam collected: 17200/19412 [3622s]
+  test beam collected: 17400/19412 [3665s]
+  test beam collected: 17600/19412 [3708s]
+  test beam collected: 17800/19412 [3751s]
+  test beam collected: 18000/19412 [3793s]
+  test beam collected: 18200/19412 [3836s]
+  test beam collected: 18400/19412 [3879s]
+  test beam collected: 18600/19412 [3921s]
+  test beam collected: 18800/19412 [3964s]
+  test beam collected: 19000/19412 [4007s]
+  test beam collected: 19200/19412 [4049s]
+  test beam collected: 19400/19412 [4092s]
+  19412 test samples [4095s]
+  Saved to /data/lishazhai/workspace/GR4AD/experiments/toys_scorer/beam_data_test.pt
+  R@50 (hit in beam): 0.1662 (16.62%)
+
+Val:  R@1=0.0396, R@5=0.0865, R@10=0.1152, R@50=0.1999
+
+============================================================
+PART 1: Pointwise Focal BCE
+============================================================
+  λ-selection split: 13589 pool (scorer-train) / 5823 held-out (λ-select)
+  λ grid OVERRIDE (proxy top-k): (0.0, 0.02, 0.05, 0.1)
+Training Pointwise Focal BCE (train=focal, early-stop=BCE)...
+  Done
+Selecting Focal lambda on held-out (R@1 argmax over grid)...
+  lambda=0.0   held-out R@1=0.0390
+  lambda=0.02  held-out R@1=0.0386
+  lambda=0.05  held-out R@1=0.0393
+  lambda=0.1   held-out R@1=0.0398
+  -> best Focal lambda=0.1 (held-out R@1=0.0398)
+
+============================================================
+PART 2: 5-seed Listwise BCE
+============================================================
+
+Seed 42:
+/data/common/conda_envs_shared/lishazhai/gram/lib/python3.10/site-packages/torch/nn/modules/transformer.py:282: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(f"enable_nested_tensor is True, but self.use_nested_tensor is False because {why_not_sparsity_fast_path}")
+  14 ep, val_loss=0.0230
+
+Seed 123:
+  16 ep, val_loss=0.0222
+
+Seed 7:
+  20 ep, val_loss=0.0232
+
+Seed 999:
+  15 ep, val_loss=0.0238
+
+Seed 2024:
+  17 ep, val_loss=0.0230
+Selecting Listwise lambda on held-out (mean R@1 across seeds, same grid)...
+  lambda=0.0   held-out mean R@1=0.0390
+  lambda=0.02  held-out mean R@1=0.0404
+  lambda=0.05  held-out mean R@1=0.0404
+  lambda=0.1   held-out mean R@1=0.0386
+  -> best Listwise lambda=0.02 (val mean R@1=0.0404)
+
+============================================================
+PART 3: Test evaluation
+============================================================
+
+Method                                        R@1      R@5     R@10     R@50   vs Van
+----------------------------------------------------------------------------------------
+Vanilla BS-50                              0.0313   0.0690   0.0927   0.1662     base
+Pointwise Focal λ=0.1                      0.0311   0.0719   0.0975   0.1662    -0.8%
+
+Seed          R@1   vs Van      R@5     R@10
+--------------------------------------------------
+42         0.0322    +2.8%   0.0734   0.0978
+123        0.0322    +2.8%   0.0730   0.0983
+7          0.0326    +3.9%   0.0736   0.0975
+999        0.0324    +3.3%   0.0732   0.0983
+2024       0.0324    +3.3%   0.0721   0.0978
+Mean±Std  0.0323±0.0001    +3.2%
+
+--- Oracle (perfect ranking) ---
+Oracle R@1 = R@50 = 0.1662
+Scoring Efficiency: Vanilla=18.8%, Best Scorer=19.4%
+
+Wrote /data/lishazhai/workspace/GR4AD/experiments/toys_scorer/results.json and per_user_hits.npz
+
+Done [145 min].

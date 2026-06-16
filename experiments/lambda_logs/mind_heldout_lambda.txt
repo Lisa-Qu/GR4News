@@ -1,0 +1,57 @@
+Loading model + data...
+
+Collecting beam data (per-sample)...
+  loading cached beam data: /home/lishazhai/workspace/GR4AD/experiments/main_table/beam_val.pt
+  loading cached beam data: /home/lishazhai/workspace/GR4AD/experiments/main_table/beam_test.pt
+  λ-selection split: 24960 pool (scorer-train) / 10696 held-out (λ-select)
+
+Training Pointwise Focal...
+Selecting Focal lambda on held-out (R@1 argmax over locked grid)...
+  lambda=0.0   held-out R@1=0.0352
+  lambda=0.02  held-out R@1=0.0356
+  lambda=0.05  held-out R@1=0.0365
+  lambda=0.1   held-out R@1=0.0375
+  lambda=0.2   held-out R@1=0.0366
+  lambda=0.35  held-out R@1=0.0365
+  lambda=0.5   held-out R@1=0.0364
+  lambda=0.7   held-out R@1=0.0352
+  lambda=1.0   held-out R@1=0.0332
+  -> best Focal lambda=0.1 (held-out R@1=0.0375)
+
+Training 5-seed Listwise BCE...
+/data/common/conda_envs_shared/lishazhai/gram/lib/python3.10/site-packages/torch/nn/modules/transformer.py:282: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(f"enable_nested_tensor is True, but self.use_nested_tensor is False because {why_not_sparsity_fast_path}")
+  seed 42: 23 ep, val_loss=0.0421
+  seed 123: 25 ep, val_loss=0.0421
+  seed 7: 23 ep, val_loss=0.0418
+  seed 999: 21 ep, val_loss=0.0421
+  seed 2024: 18 ep, val_loss=0.0417
+Selecting Listwise lambda on held-out (mean R@1 across seeds, same grid)...
+  lambda=0.0   held-out mean R@1=0.0352
+  lambda=0.02  held-out mean R@1=0.0363
+  lambda=0.05  held-out mean R@1=0.0373
+  lambda=0.1   held-out mean R@1=0.0378
+  lambda=0.2   held-out mean R@1=0.0378
+  lambda=0.35  held-out mean R@1=0.0375
+  lambda=0.5   held-out mean R@1=0.0371
+  lambda=0.7   held-out mean R@1=0.0367
+  lambda=1.0   held-out mean R@1=0.0362
+  -> best Listwise lambda=0.1 (held-out mean R@1=0.0378)
+
+Test evaluation...
+
+Method                                  R@1      R@5     R@10     R@50   vsVan
+------------------------------------------------------------------------------
+TIGER-equiv (Vanilla BS-50)          0.0331   0.1112   0.1692   0.3671    base
+Pointwise Focal lam=0.1              0.0345   0.1125   0.1710   0.3671   +4.1%
+Listwise BCE (5-seed mean)           0.0352                              +6.3%
+Oracle (perfect rank)                0.3671   0.3671   0.3671   0.3671
+
+Scoring Efficiency: vanilla=9.0%  best_scorer=9.6%
+Stage-1 assertions passed (λ0==vanilla, Oracle bound, finite lift, vanilla R@1 in per-sample range).
+
+Wrote /home/lishazhai/workspace/GR4AD/experiments/main_table/results.json and per_user_hits.npz
+🏃 View run main_table_baselines at: http://localhost:5000/#/experiments/613279993456289342/runs/3ac1c9bea986463dadfdb244aa97c126
+🧪 View experiment at: http://localhost:5000/#/experiments/613279993456289342
+
+Total: 11 min

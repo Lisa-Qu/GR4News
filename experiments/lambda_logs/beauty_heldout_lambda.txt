@@ -1,0 +1,93 @@
+Dataset=Beauty  code_length=7  output_dir=/data/lishazhai/workspace/GR4AD/experiments/beauty_scorer
+Checkpoint=/home/lishazhai/workspace/GRAM/log/Beauty/10_20260312_1403/id_0_rec_30/model_rec_phase_1_epoch_30.pt
+Loading GRAM model...
+You are using the default legacy behaviour of the <class 'transformers.models.t5.tokenization_t5.T5Tokenizer'>. This is expected, and simply means that the `legacy` (previous) behavior will be used so nothing changes for you. If you want to use the new behaviour, set `legacy=False`. This should only be set if you understand what it means, and thoroughly read the reason why this was added as explained in https://github.com/huggingface/transformers/pull/24565
+Loaded GRAM model from /home/lishazhai/workspace/GRAM/log/Beauty/10_20260312_1403/id_0_rec_30/model_rec_phase_1_epoch_30.pt
+  d_model=512, decoder_layers=6
+
+Building val/test datasets...
+Load item id from /home/lishazhai/workspace/GRAM/rec_datasets/Beauty/item_generative_indexing_hierarchy_v1_c128_l7_len32768_split.txt
+Load item id from /home/lishazhai/workspace/GRAM/rec_datasets/Beauty/item_generative_indexing_hierarchy_v1_c128_l7_len32768_split.txt
+  Val: 22363 samples, Test: 22363 samples
+
+Loading cached val beam data from /data/lishazhai/workspace/GR4AD/experiments/beauty_scorer/beam_data_val.pt
+
+Loading cached test beam data from /data/lishazhai/workspace/GR4AD/experiments/beauty_scorer/beam_data_test.pt
+
+Val:  R@1=0.0317, R@5=0.0797, R@10=0.1107, R@50=0.2061
+
+============================================================
+PART 1: Pointwise Focal BCE
+============================================================
+  λ-selection split: 15655 pool (scorer-train) / 6708 held-out (λ-select)
+Training Pointwise Focal BCE (train=focal, early-stop=BCE)...
+  Done
+Selecting Focal lambda on held-out (R@1 argmax over locked grid)...
+  lambda=0.0   held-out R@1=0.0277
+  lambda=0.02  held-out R@1=0.0309
+  lambda=0.05  held-out R@1=0.0304
+  lambda=0.1   held-out R@1=0.0294
+  lambda=0.2   held-out R@1=0.0267
+  lambda=0.35  held-out R@1=0.0247
+  lambda=0.5   held-out R@1=0.0234
+  lambda=0.7   held-out R@1=0.0233
+  lambda=1.0   held-out R@1=0.0224
+  -> best Focal lambda=0.02 (held-out R@1=0.0309)
+
+============================================================
+PART 2: 5-seed Listwise BCE
+============================================================
+
+Seed 42:
+/data/common/conda_envs_shared/lishazhai/gram/lib/python3.10/site-packages/torch/nn/modules/transformer.py:282: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(f"enable_nested_tensor is True, but self.use_nested_tensor is False because {why_not_sparsity_fast_path}")
+  17 ep, val_loss=0.0232
+
+Seed 123:
+  18 ep, val_loss=0.0238
+
+Seed 7:
+  15 ep, val_loss=0.0250
+
+Seed 999:
+  16 ep, val_loss=0.0250
+
+Seed 2024:
+  15 ep, val_loss=0.0249
+Selecting Listwise lambda on held-out (mean R@1 across seeds, same grid)...
+  lambda=0.0   held-out mean R@1=0.0277
+  lambda=0.02  held-out mean R@1=0.0309
+  lambda=0.05  held-out mean R@1=0.0300
+  lambda=0.1   held-out mean R@1=0.0278
+  lambda=0.2   held-out mean R@1=0.0259
+  lambda=0.35  held-out mean R@1=0.0250
+  lambda=0.5   held-out mean R@1=0.0249
+  lambda=0.7   held-out mean R@1=0.0248
+  lambda=1.0   held-out mean R@1=0.0246
+  -> best Listwise lambda=0.02 (val mean R@1=0.0309)
+
+============================================================
+PART 3: Test evaluation
+============================================================
+
+Method                                        R@1      R@5     R@10     R@50   vs Van
+----------------------------------------------------------------------------------------
+Vanilla BS-50                              0.0263   0.0635   0.0881   0.1731     base
+Pointwise Focal λ=0.02                     0.0282   0.0675   0.0923   0.1731    +7.3%
+
+Seed          R@1   vs Van      R@5     R@10
+--------------------------------------------------
+42         0.0280    +6.6%   0.0687   0.0950
+123        0.0275    +4.8%   0.0681   0.0948
+7          0.0277    +5.4%   0.0674   0.0941
+999        0.0271    +2.9%   0.0670   0.0940
+2024       0.0277    +5.3%   0.0678   0.0943
+Mean±Std  0.0276±0.0003    +5.0%
+
+--- Oracle (perfect ranking) ---
+Oracle R@1 = R@50 = 0.1731
+Scoring Efficiency: Vanilla=15.2%, Best Scorer=15.9%
+
+Wrote /data/lishazhai/workspace/GR4AD/experiments/beauty_scorer/results.json and per_user_hits.npz
+
+Done [14 min].
