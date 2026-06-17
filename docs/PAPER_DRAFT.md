@@ -73,7 +73,7 @@ Efficiency settings (Toys: −13% → +3.2% once λ is chosen honestly).
 *(Organize by methodology; cite generously. All keys below are PLACEHOLDERS to verify.)*
 
 **Generative retrieval / recommendation.** Generating item identifiers and ranking by sequence
-likelihood `\cite{tiger, gram, letter}` (LC-Rec / IDGenRec pending citation verification). These works focus on *building* the
+likelihood `\cite{tiger, gram, idgenrec, lcrec, letter}`. These works focus on *building* the
 generator (better identifiers, training objectives); we instead treat any such generator as frozen
 and address the *ranking* of its beam, which is complementary.
 
@@ -220,10 +220,11 @@ generators, domains, and code-lengths — a model-agnostic, retrain-free improve
 | approxndcg | Qin, Liu, Li, Information Retrieval 13(4):375–397, **2010** | DOI 10.1007/s10791-009-9124-x |
 | guo_calibration | Guo et al., On Calibration of Modern Neural Networks, ICML 2017 | PMLR 70:1321–1330, arXiv 1706.04599 |
 | letter | Wang, Bao et al., LETTER, CIKM 2024 | arXiv 2405.07314 |
+| lcrec | Zheng et al., LC-Rec, ICDE 2024, pp.1435–1448 | arXiv 2311.09049 |
+| idgenrec | Tan et al., IDGenRec, SIGIR 2024, pp.355–364 | DOI 10.1145/3626772.3657821, arXiv 2403.19021 |
+| gram | Lee, Choi, Choi, Kim, Lee, GRAM, ACL 2025 | arXiv 2506.01673 (authors confirmed) |
 
-**STILL PENDING (do NOT cite until confirmed):** `lcrec` (Zheng et al. 2024 — referenced via LETTER
-as a base model; confirm venue/ICDE & arXiv), `idgenrec` (Tan et al. SIGIR 2024? — not yet searched).
-
+All 11 keys now web-verified (existence + canonical fields) and in `docs/references.bib`.
 **Before camera-ready:** re-fetch each entry's BibTeX programmatically (CrossRef DOI / arXiv / DBLP)
 to lock author spelling, page numbers, DOIs (current fields are web-verified but hand-assembled).
 
