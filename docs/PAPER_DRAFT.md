@@ -73,7 +73,7 @@ Efficiency settings (Toys: −13% → +3.2% once λ is chosen honestly).
 *(Organize by methodology; cite generously. All keys below are PLACEHOLDERS to verify.)*
 
 **Generative retrieval / recommendation.** Generating item identifiers and ranking by sequence
-likelihood `\cite{tiger, gram, idgenrec, lcrec, letter}`. These works focus on *building* the
+likelihood `\cite{tiger, gram, letter}` (LC-Rec / IDGenRec pending citation verification). These works focus on *building* the
 generator (better identifiers, training objectives); we instead treat any such generator as frozen
 and address the *ranking* of its beam, which is complementary.
 
@@ -207,19 +207,25 @@ generators, domains, and code-lengths — a model-agnostic, retrain-free improve
 
 ---
 
-## Citations to verify (NONE are confirmed — fetch BibTeX programmatically before compiling)
-| key | what we believe it is | must verify |
+## Citations — status (see `docs/references.bib`)
+**VERIFIED via web (existence + canonical fields, 2026-06-17)** — in `references.bib`:
+| key | ref | source |
 |---|---|---|
-| tiger | Rajput et al., "Recommender Systems with Generative Retrieval" (TIGER), NeurIPS 2023 | title/authors/year/venue |
-| gram | GRAM: Generative Recommendation via Semantic-aware Multi-granular Late Fusion, ACL 2025 (arXiv 2506.01673) | verified to exist via web (2026-06); confirm BibTeX |
-| idgenrec | IDGenRec (LLM generative rec with textual IDs) | exists? authors/year |
-| lcrec, letter | LC-Rec / LETTER (learned item identifiers) | exists? |
-| sasrec | Kang & McAuley, "Self-Attentive Sequential Recommendation" (SASRec), ICDM 2018 | confirm |
-| nrms | Wu et al., "Neural News Recommendation with Multi-Head Self-Attention" (NRMS), EMNLP 2019 | confirm |
-| focal_loss | Lin et al., "Focal Loss for Dense Object Detection", ICCV 2017 | confirm |
-| listmle | Xia et al., "Listwise Approach to Learning to Rank" (ListMLE), ICML 2008 | confirm |
-| approxndcg | Qin et al., ApproxNDCG | confirm exact ref |
-| guo_calibration | Guo et al., "On Calibration of Modern Neural Networks", ICML 2017 | confirm |
+| tiger | Rajput et al., Recommender Systems with Generative Retrieval, NeurIPS 2023 | arXiv 2305.05065, NeurIPS proc. |
+| gram | GRAM, ACL 2025 | arXiv 2506.01673 (author list still to confirm) |
+| sasrec | Kang & McAuley, SASRec, ICDM 2018 | arXiv 1808.09781, DOI 10.1109/ICDM.2018.00035 |
+| nrms | Wu et al., NRMS, EMNLP-IJCNLP 2019 | ACL D19-1671 |
+| focal_loss | Lin et al., Focal Loss, ICCV 2017 | arXiv 1708.02002 |
+| listmle | Xia et al., ListMLE, ICML 2008, pp.1192–1199 | ICML proc. |
+| approxndcg | Qin, Liu, Li, Information Retrieval 13(4):375–397, **2010** | DOI 10.1007/s10791-009-9124-x |
+| guo_calibration | Guo et al., On Calibration of Modern Neural Networks, ICML 2017 | PMLR 70:1321–1330, arXiv 1706.04599 |
+| letter | Wang, Bao et al., LETTER, CIKM 2024 | arXiv 2405.07314 |
+
+**STILL PENDING (do NOT cite until confirmed):** `lcrec` (Zheng et al. 2024 — referenced via LETTER
+as a base model; confirm venue/ICDE & arXiv), `idgenrec` (Tan et al. SIGIR 2024? — not yet searched).
+
+**Before camera-ready:** re-fetch each entry's BibTeX programmatically (CrossRef DOI / arXiv / DBLP)
+to lock author spelling, page numbers, DOIs (current fields are web-verified but hand-assembled).
 
 ## Open framing questions (flagged, not blocking)
 1. **Venue** (affects template/length/required sections): project says CCF-B — which exactly (RecSys /
