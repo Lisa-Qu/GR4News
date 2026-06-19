@@ -43,6 +43,17 @@ $p<10^{-6}$), and reduces per-candidate calibration error from 0.283 to 0.0009.
 
 \maketitle
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/teaser.pdf}
+  \caption{A frozen generative retriever emits an overconfident beam (high calibration error, low
+  Scoring Efficiency): the target is usually \emph{in} the beam but ranked poorly. Our model-agnostic
+  post-hoc scorer rescores the \emph{same} beam, fusing the generator's $\mathrm{avg\_logprob}$ with a
+  calibrated relevance term ($\lambda$ chosen on held-out validation), recalibrating the scores and
+  lifting Recall@1 by 3.2--6.3\% across diverse base generators---without retraining the generator.}
+  \label{fig:teaser}
+\end{figure}
+
 \section{Introduction}
 Generative retrieval has emerged as a compact alternative to dual-encoder retrieval: an
 encoder--decoder model autoregressively generates a target item's discrete identifier (a sequence of
@@ -50,7 +61,7 @@ semantic or hierarchical codes), and beam search produces a ranked candidate
 list~\cite{tiger,gram,idgenrec,lcrec,letter}. The model's own sequence log-probability serves as the
 ranking score. This is elegant---one model both generates and ranks---but it couples \emph{recall}
 (is the target in the beam?) to \emph{ranking} (is it near the top?) through a single signal the
-decoder was never trained to calibrate.
+decoder was never trained to calibrate (Fig.~\ref{fig:teaser}).
 
 \paragraph{We first diagnose a confidence cascade.} On a frozen generator we measure, per decoded
 position, the expected calibration error (ECE) of the decoder's token confidence. Under greedy
