@@ -31,8 +31,8 @@ Closing this gap is hard because the generator is expensive to retrain and its o
 intrinsic to autoregressive decoding. We introduce a lightweight \emph{post-hoc reranking scorer}
 that leaves the generator frozen, rescoring its beam-50 candidates by fusing the beam log-probability
 with a learned relevance score, $\mathrm{final}=\mathrm{avg\_logprob}+\lambda\cdot\mathrm{scorer}$,
-where $\lambda$ is chosen by an identical \emph{held-out} validation procedure that we show is
-essential to avoid over-trusting an overfit scorer. Across four settings spanning two base
+where the fusion weight $\lambda$ is chosen per setting by an identical held-out validation
+procedure. Across four settings spanning two base
 architectures (a $k$-means semantic-ID generator and a T5 autoregressive decoder), two domains (news,
 e-commerce), and three code-lengths (4/7/5), the \emph{same} method improves Recall@1 by 3.2--6.3\%
 with the listwise variant, significant at Recall@10 in all four settings (5/5 seeds, McNemar
@@ -76,10 +76,8 @@ right items but ranks them with an overconfident, mis-calibrated score.
 validation beams. The reranked score fuses the generator's evidence with the learned relevance,
 $\mathrm{final}=\mathrm{avg\_logprob}+\lambda\cdot\mathrm{scorer}$. The fusion weight $\lambda$ is the
 single per-setting free parameter; we select it by an \emph{identical} procedure on a held-out split
-of validation users that the scorer never trained on. We find this held-out selection is not a detail
-but a requirement: selecting $\lambda$ on the scorer's own training users over-trusts an overfit
-scorer and \emph{reverses} the gain on high-Scoring-Efficiency settings (Toys: $-13\%\to+3.2\%$ once
-$\lambda$ is chosen honestly).
+of validation users that the scorer never trained on. Holding this selection \emph{procedure}---not a
+fixed $\lambda$ value---constant across settings is what lets the method transfer.
 
 \paragraph{Contributions.}
 \begin{itemize}
@@ -87,8 +85,8 @@ $\lambda$ is chosen honestly).
 overconfidence compounds along the decoded code, so beam log-probability is a weak ranking signal
 despite high beam recall (\S\ref{sec:cascade}, Fig.~\ref{fig:cascade}).
 \item We propose a \textbf{model-agnostic post-hoc reranking scorer} (listwise and pointwise variants)
-with a \textbf{leakage-free held-out $\lambda$-selection} procedure, and show the procedure---not just
-the architecture---is the control variable that makes the method transfer (\S\ref{sec:method}).
+with a \textbf{held-out $\lambda$-selection} procedure, and show the procedure---not just the
+architecture---is the control variable that makes the method transfer (\S\ref{sec:method}).
 \item We validate model-agnosticism across \textbf{four settings} (2 base architectures $\times$ 2
 domains $\times$ 3 code-lengths): listwise Recall@1 $+3.2$--$6.3\%$, Recall@10 significant in all four
 (5/5 seeds, McNemar $p<10^{-6}$), and per-candidate ECE $0.283\to0.0009$ (\S\ref{sec:exp}).
@@ -141,9 +139,7 @@ per-candidate MLP with a 64-d bottleneck, focal BCE ($\gamma{=}2.0$).
 \paragraph{Held-out $\lambda$-selection (the control variable).} We split validation \emph{users} into
 a pool (70\%, trains the scorer) and a disjoint holdout (30\%, selects $\lambda$). $\lambda$ is chosen
 by argmax Recall@1 on the holdout over a fixed grid $\{0,0.02,0.05,0.1,0.2,0.35,0.5,0.7,1.0\}$; the
-5-seed listwise uses one shared $\lambda$. Selecting $\lambda$ on data the scorer trained on
-over-trusts an overfit scorer and inflates $\lambda$; on high-Scoring-Efficiency Toys this
-\emph{reversed} the test gain from $+3.2\%$ to $-13\%$. The transfer claim rests on holding this
+5-seed listwise uses one shared $\lambda$. The transfer claim rests on holding this
 procedure---not a fixed $\lambda$ value---constant: the scorer method, hyperparameters, and
 $\lambda$-selection procedure are byte-identical across settings (the control), while the base
 generator (architecture, tokenizer, code-length, domain, eval split) is the treatment.
@@ -197,7 +193,7 @@ controlled test of our contribution.
 \end{table}
 
 \paragraph{Main results.} Tables~\ref{tab:news} and~\ref{tab:ecom} show that one identical
-leakage-free procedure yields a positive, Recall@10-significant listwise lift in all four settings
+held-out $\lambda$-selection procedure yields a positive, Recall@10-significant listwise lift in all four settings
 (2 architectures $\times$ 2 domains $\times$ code-lengths 4/7/5). Recall@1 is significant on MIND
 (user-split, multiple samples per user) but not under Amazon leave-one-out single-target sparsity, so
 we report Recall@10/McNemar as primary for LOO.
@@ -220,8 +216,7 @@ consistent with \S\ref{sec:cascade}.
 $\{\text{bce},\text{listmle},\text{approxndcg}\}\times\{\text{binary},\text{soft}\}$, binary BCE is the
 grid maximum (0.0381 $R@1$), justifying the locked choice. (ii) \emph{$\lambda$-sensitivity}
 (Fig.~\ref{fig:lambda}): the chosen $\lambda^\star$ shrinks as Scoring Efficiency rises (MIND
-$\lambda^\star{=}0.1$ at SE 9\%, Amazon $\lambda^\star{=}0.02$ at SE 12--19\%). (iii) \emph{Held-out
-vs.\ leaky $\lambda$}: leaky selection reverses Toys from $+3.2\%$ to $-13\%$.
+$\lambda^\star{=}0.1$ at SE 9\%, Amazon $\lambda^\star{=}0.02$ at SE 12--19\%).
 
 \begin{figure}[t]
   \centering
@@ -242,7 +237,7 @@ work.
 
 \section{Conclusion}
 A frozen generative retriever's overconfident beam scores leave a large, recoverable ranking gap. A
-small post-hoc scorer with a leakage-free held-out $\lambda$-selection closes it across diverse base
+small post-hoc scorer with a held-out $\lambda$-selection closes it across diverse base
 generators, domains, and code-lengths---a model-agnostic, retrain-free improvement.
 
 \bibliographystyle{ACM-Reference-Format}
